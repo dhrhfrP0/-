@@ -1,0 +1,1484 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0A5C36" />
+  <!-- SEO 메타 태그 -->
+  <title>중개광장 — 서로 다른 생각이 만나도, 이해가 시작되는 광장</title>
+  <meta name="description" content="보수와 진보, 세대와 세대가 만나 서로를 이해하는 한국 최초의 중개형 정치 커뮤니티. 자유광장에서 대화하고, 정치싸움판에서 격돌하세요." />
+  <meta name="keywords" content="정치커뮤니티,세대대립,보수,진보,자유광장,정치토론,중개광장" />
+  <meta name="author" content="중개광장" />
+  <meta property="og:title" content="중개광장 — 세대도, 정치도, 함께" />
+  <meta property="og:description" content="서로 다른 생각이 만나도, 이해가 시작되는 광장" />
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="ko_KR" />
+
+  <!-- Pretendard 한국어 폰트 -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <link rel="stylesheet" as="style" crossorigin
+        href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+
+  <!-- Tailwind CSS v3.4 (CDN) -->
+  <script src="https://cdn.tailwindcss.com/3.4.16"></script>
+  <script>
+    // 테일윈드 커스텀 설정: 브랜드 컬러·폰트·다크모드
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              DEFAULT: '#0A5C36', // 메인 깊은 녹색 (중개인 상징)
+              light:   '#1B7A4B',
+              dark:    '#063D24',
+              pale:    '#E8F3EC'
+            },
+            conservative: { pale: '#FDECEC', soft: '#F5C2C2', deep: '#B53A3A' },
+            progressive:  { pale: '#E8F0FB', soft: '#B7CDEF', deep: '#2D5BB8' },
+            neutral2:     { pale: '#F0F0F0' }
+          },
+          fontFamily: {
+            sans: ['Pretendard Variable', 'Pretendard', 'Noto Sans KR', 'system-ui', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Alpine.js (인터랙션) -->
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+
+  <style>
+    /* 기본 폰트·줄간격·접근성 */
+    html { font-family: 'Pretendard Variable', Pretendard, 'Noto Sans KR', system-ui, sans-serif; }
+    body { line-height: 1.8; font-size: 18px; background: #F8F9FA; color: #1a1a1a; }
+    /* 본문 최소 18px, 제목 24px+ 규칙은 클래스로 강제 */
+
+    /* 포커스 링 (WCAG AAA) */
+    :focus-visible { outline: 3px solid #0A5C36; outline-offset: 2px; border-radius: 6px; }
+
+    /* 클릭 피드백 ripple */
+    .ripple { position: relative; overflow: hidden; transition: transform .08s ease; }
+    .ripple:active { transform: scale(0.97); }
+
+    /* 정치싸움판 격전 배경 효과 */
+    @keyframes battlePulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(181,58,58,0.25); }
+      50%      { box-shadow: 0 0 40px 8px rgba(181,58,58,0.35); }
+    }
+    .battle-active { animation: battlePulse 2.4s ease-in-out infinite; }
+    .battle-bg {
+      background:
+        radial-gradient(circle at 20% 30%, rgba(255,80,80,0.10), transparent 40%),
+        radial-gradient(circle at 80% 70%, rgba(255,140,0,0.10), transparent 40%),
+        linear-gradient(180deg, #FFF8F8 0%, #FFF1F1 100%);
+    }
+
+    /* 부드러운 그라데이션 카드 */
+    .glass {
+      background: rgba(255,255,255,0.75);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+
+    /* 스크롤바 살짝 다듬기 */
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-thumb { background: #C7D6CC; border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: #0A5C36; }
+
+    /* 다크모드 (옵션) */
+    .dark body { background: #0E1411; color: #E6EBE8; }
+    .dark .glass { background: rgba(20,28,24,0.75); }
+
+    /* 모달 백드롭 */
+    .modal-backdrop { background: rgba(10,20,15,0.55); backdrop-filter: blur(4px); }
+
+    /* 정치성향 배지 색 */
+    .badge-ext-right { background:#FEE2E2; color:#991B1B; border:1px solid #FCA5A5; }
+    .badge-right     { background:#FFEDD5; color:#9A3412; border:1px solid #FDBA74; }
+    .badge-center    { background:#F3F4F6; color:#374151; border:1px solid #D1D5DB; }
+    .badge-left      { background:#DBEAFE; color:#1E40AF; border:1px solid #93C5FD; }
+    .badge-ext-left  { background:#EDE9FE; color:#5B21B6; border:1px solid #C4B5FD; }
+
+    /* 큰 버튼 (48px 이상) 강제 */
+    .btn { min-height: 48px; min-width: 48px; padding: 12px 20px; font-weight: 600; border-radius: 12px; }
+
+    /* 카운트다운 숫자 등폭 */
+    .tabular { font-variant-numeric: tabular-nums; }
+
+    /* 첫방문 가이드 슬라이드 */
+    .guide-slide { transition: opacity .3s ease, transform .3s ease; }
+
+    /* "이해" 버튼 강조 */
+    .understand-btn {
+      background: linear-gradient(135deg, #0A5C36, #1B7A4B);
+      color: white;
+    }
+    .understand-btn:hover { background: linear-gradient(135deg, #063D24, #0A5C36); }
+
+    /* 모바일에서 본문 18px 유지 */
+    @media (max-width: 640px) {
+      body { font-size: 18px; }
+      h1 { font-size: 28px !important; }
+      h2 { font-size: 24px !important; }
+    }
+  </style>
+</head>
+<body x-data="junggaePlaza()" x-init="init()" :class="darkMode ? 'dark' : ''" class="min-h-screen">
+
+  <!-- ========== 상단 알림 배너 (인신공격 금지 + 중국 IP 안내) ========== -->
+  <div class="bg-brand text-white text-sm py-2 px-4 text-center" role="alert">
+    <span class="hidden sm:inline">⚖️ </span>
+    <span class="font-medium">인신공격·혐오 표현 금지</span>
+    <span class="opacity-80"> · 서로 다른 생각을 존중하는 광장입니다</span>
+    <template x-if="profile.country_code === 'CN'">
+      <span class="ml-3 bg-red-500/90 px-2 py-0.5 rounded-md text-xs">국적 공개로 안전한 토론을 지킵니다</span>
+    </template>
+  </div>
+
+  <!-- ========== 헤더 / 상단 네비게이션 ========== -->
+  <header class="sticky top-0 z-40 bg-white/95 dark:bg-zinc-900/95 backdrop-blur border-b border-zinc-200 dark:border-zinc-800 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6">
+      <div class="flex items-center justify-between h-16 sm:h-20 gap-2">
+
+        <!-- 로고 -->
+        <button @click="goto('home')" class="flex items-center gap-2 ripple" aria-label="중개광장 홈으로">
+          <div class="w-10 h-10 rounded-xl bg-brand flex items-center justify-center text-white font-black text-xl">중</div>
+          <div class="hidden sm:block text-left">
+            <div class="text-xl font-black text-brand dark:text-brand-light leading-tight">중개광장</div>
+            <div class="text-xs text-zinc-500 leading-tight">서로 다른 생각이 만나는 곳</div>
+          </div>
+        </button>
+
+        <!-- 데스크탑 네비 -->
+        <nav class="hidden lg:flex items-center gap-1" aria-label="주 메뉴">
+          <template x-for="m in menus" :key="m.id">
+            <button @click="goto(m.id)"
+                    :class="route === m.id
+                      ? 'bg-brand text-white'
+                      : 'text-zinc-700 dark:text-zinc-200 hover:bg-brand-pale dark:hover:bg-zinc-800'"
+                    class="btn ripple text-base">
+              <span x-text="m.label"></span>
+              <template x-if="m.id === 'battle' && battleOpen">
+                <span class="ml-1 inline-block w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+              </template>
+            </button>
+          </template>
+        </nav>
+
+        <!-- 우측: 검색 + 프로필 -->
+        <div class="flex items-center gap-2">
+          <div class="hidden md:flex items-center bg-zinc-100 dark:bg-zinc-800 rounded-xl px-3 h-12">
+            <svg class="w-5 h-5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M11 19a8 8 0 110-16 8 8 0 010 16z"/>
+            </svg>
+            <input type="text" placeholder="검색…" aria-label="검색"
+                   class="bg-transparent outline-none px-2 w-40 text-base placeholder-zinc-400" />
+          </div>
+
+          <!-- 다크모드 토글 -->
+          <button @click="toggleDark()" class="btn ripple bg-zinc-100 dark:bg-zinc-800" :aria-label="darkMode?'라이트모드 전환':'다크모드 전환'" title="다크/라이트">
+            <span x-show="!darkMode">🌙</span>
+            <span x-show="darkMode">☀️</span>
+          </button>
+
+          <!-- 프로필 / 로그인 -->
+          <template x-if="!profile.loggedIn">
+            <button @click="openLogin = true" class="btn ripple bg-brand text-white">로그인</button>
+          </template>
+          <template x-if="profile.loggedIn">
+            <button @click="goto('profile')" class="flex items-center gap-2 btn ripple bg-zinc-100 dark:bg-zinc-800" aria-label="내 프로필">
+              <span class="text-2xl" x-text="profile.avatar"></span>
+              <span class="hidden sm:inline font-bold" x-text="profile.nickname"></span>
+              <span class="hidden md:inline text-xs px-2 py-0.5 rounded-full"
+                    :class="badgeClass(profile.leaning)"
+                    x-text="leaningLabel(profile.leaning)"></span>
+            </button>
+          </template>
+
+          <!-- 모바일 메뉴 토글 -->
+          <button @click="mobileNav = !mobileNav" class="lg:hidden btn ripple bg-zinc-100 dark:bg-zinc-800" aria-label="메뉴 열기">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- 모바일 네비 (펼침) -->
+      <div x-show="mobileNav" x-transition class="lg:hidden pb-4 grid grid-cols-2 gap-2" @click.away="mobileNav=false">
+        <template x-for="m in menus" :key="'m_'+m.id">
+          <button @click="goto(m.id); mobileNav=false"
+                  :class="route === m.id ? 'bg-brand text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100'"
+                  class="btn ripple text-left">
+            <span x-text="m.label"></span>
+            <template x-if="m.id === 'battle' && battleOpen">
+              <span class="ml-1 inline-block w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+            </template>
+          </button>
+        </template>
+      </div>
+    </div>
+  </header>
+
+  <!-- ========== 메인 컨테이너 ========== -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
+
+    <!-- ============ 홈 ============ -->
+    <section x-show="route === 'home'" x-transition>
+      <!-- 히어로 -->
+      <div class="rounded-3xl bg-gradient-to-br from-brand to-brand-light text-white p-6 sm:p-12 mb-8 shadow-lg relative overflow-hidden">
+        <div class="absolute -right-10 -top-10 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
+        <div class="absolute -left-10 -bottom-10 w-72 h-72 bg-black/10 rounded-full blur-3xl"></div>
+        <h1 class="text-3xl sm:text-5xl font-black leading-tight mb-3 relative">서로 다른 생각이 만나도,<br/>이해가 시작되는 광장</h1>
+        <p class="text-lg sm:text-xl opacity-90 mb-6 relative">세대도, 정치도, 함께 — 중개광장에 오신 것을 환영합니다.</p>
+        <div class="flex flex-wrap gap-3 relative">
+          <button @click="goto('plaza')" class="btn ripple bg-white text-brand font-bold">🌿 자유광장 둘러보기</button>
+          <button @click="goto('battle')" class="btn ripple bg-black/30 text-white border border-white/30">🔥 정치싸움판</button>
+        </div>
+      </div>
+
+      <!-- 싸움판 카운트다운 배너 -->
+      <div class="rounded-2xl p-5 sm:p-6 mb-8 border-2"
+           :class="battleOpen ? 'border-red-400 battle-bg battle-active' : 'border-zinc-200 bg-white dark:bg-zinc-900 dark:border-zinc-800'">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-2xl">🔥</span>
+              <h2 class="text-xl sm:text-2xl font-black" :class="battleOpen ? 'text-red-700' : 'text-zinc-800 dark:text-zinc-100'">
+                정치싸움판
+                <span x-show="battleOpen" class="text-sm bg-red-600 text-white px-2 py-0.5 rounded-full ml-2 animate-pulse">LIVE</span>
+              </h2>
+            </div>
+            <p class="text-zinc-600 dark:text-zinc-300">매일 오전 9–12시 / 오후 6–9시 (KST) — 3시간씩 격전</p>
+          </div>
+          <div class="text-center sm:text-right">
+            <div class="text-xs text-zinc-500 mb-1" x-text="battleOpen ? '종료까지' : '오픈까지'"></div>
+            <div class="tabular text-3xl sm:text-4xl font-black" :class="battleOpen ? 'text-red-700' : 'text-brand'">
+              <span x-text="battleCountdown"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 오늘의 핫 토픽 (자유광장 한정) -->
+      <div class="mb-10">
+        <div class="flex items-end justify-between mb-4">
+          <h2 class="text-2xl font-black">🔥 오늘의 핫 토픽 <span class="text-sm font-medium text-zinc-500">자유광장 한정</span></h2>
+          <button @click="goto('plaza')" class="text-brand font-bold hover:underline">전체 보기 →</button>
+        </div>
+        <div class="grid md:grid-cols-3 gap-4">
+          <template x-for="(p, i) in hotTopics" :key="'hot_'+p.id">
+            <article @click="openPost(p)" class="ripple cursor-pointer rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-5 hover:shadow-lg transition shadow-sm">
+              <div class="flex items-center gap-2 text-xs text-zinc-500 mb-2">
+                <span class="bg-brand text-white px-2 py-0.5 rounded-full font-bold" x-text="'TOP ' + (i+1)"></span>
+                <span class="bg-brand-pale text-brand px-2 py-0.5 rounded-full" x-text="p.zone"></span>
+              </div>
+              <h3 class="text-lg font-bold leading-snug mb-2 line-clamp-2" x-text="p.title"></h3>
+              <p class="text-sm text-zinc-600 dark:text-zinc-300 line-clamp-2 mb-3" x-text="p.content"></p>
+              <div class="flex items-center justify-between text-xs text-zinc-500">
+                <span x-text="'💬 ' + p.comments.length + ' · 👍 ' + p.votes.agree + ' · 🤝 ' + p.votes.understand"></span>
+                <span x-text="p.author.nickname"></span>
+              </div>
+            </article>
+          </template>
+        </div>
+      </div>
+
+      <!-- 실시간 인기 토론 랭킹 + 세대별 핫이슈 -->
+      <div class="grid md:grid-cols-2 gap-6 mb-10">
+        <div class="rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6">
+          <h3 class="text-xl font-black mb-4">📈 실시간 인기 토론 TOP 5</h3>
+          <ol class="space-y-3">
+            <template x-for="(p, i) in topRanked" :key="'rk_'+p.id">
+              <li class="flex items-start gap-3 cursor-pointer ripple p-2 rounded-lg hover:bg-brand-pale dark:hover:bg-zinc-800" @click="openPost(p)">
+                <span class="text-xl font-black text-brand w-7" x-text="i+1"></span>
+                <div class="flex-1">
+                  <div class="font-bold line-clamp-1" x-text="p.title"></div>
+                  <div class="text-xs text-zinc-500 mt-0.5" x-text="p.zone + ' · 댓글 ' + p.comments.length"></div>
+                </div>
+              </li>
+            </template>
+          </ol>
+        </div>
+
+        <div class="rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6">
+          <h3 class="text-xl font-black mb-4">👥 세대별 핫이슈</h3>
+          <div class="space-y-4">
+            <template x-for="g in generationHot" :key="'gen_'+g.key">
+              <div class="p-3 rounded-xl" :class="g.bg">
+                <div class="flex items-center justify-between mb-1">
+                  <span class="font-black" x-text="g.icon + ' ' + g.label"></span>
+                  <span class="text-xs text-zinc-500" x-text="g.share + '% 참여'"></span>
+                </div>
+                <p class="text-sm" x-text="g.topic"></p>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+
+      <!-- 주간 이벤트 배너 -->
+      <div class="rounded-2xl p-6 mb-10 bg-gradient-to-r from-amber-100 to-rose-100 dark:from-amber-900/40 dark:to-rose-900/40 border border-amber-200 dark:border-amber-800">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div class="text-xs font-bold text-amber-700 dark:text-amber-300 mb-1">📅 이번 주 세대 간 좌우 대결 토론</div>
+            <h3 class="text-2xl font-black">“20대 vs 60대 — 연금 개혁, 누가 더 손해인가?”</h3>
+          </div>
+          <button @click="goto('battle')" class="btn ripple bg-red-600 text-white">참전하기 →</button>
+        </div>
+      </div>
+
+      <!-- 광고 슬롯 자리 (Google AdSense) -->
+      <div class="rounded-xl bg-zinc-100 dark:bg-zinc-800 border-2 border-dashed border-zinc-300 dark:border-zinc-700 p-6 text-center text-zinc-500 mb-10" aria-label="광고 영역">
+        <div class="text-sm">[ 광고 영역 — Google AdSense 슬롯 ]</div>
+      </div>
+    </section>
+
+
+    <!-- ============ 보수마당 ============ -->
+    <section x-show="route === 'conservative'" x-transition>
+      <div class="rounded-2xl bg-conservative-pale dark:bg-red-900/20 p-6 mb-6 border border-conservative-soft">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 class="text-3xl font-black text-conservative-deep">🛡️ 보수마당</h1>
+            <p class="text-zinc-700 dark:text-zinc-200 mt-1">보수 성향 게시물 전용 공간 — 본인 세대 마당에서만 글을 쓸 수 있어요.</p>
+          </div>
+          <button @click="newPost('conservative')" class="btn ripple bg-conservative-deep text-white">✏️ 글쓰기</button>
+        </div>
+      </div>
+
+      <!-- 세대 서브탭 -->
+      <div class="flex flex-wrap gap-2 mb-6">
+        <template x-for="g in generations" :key="'cg_'+g.key">
+          <button @click="subGen = g.key"
+                  :class="subGen === g.key ? 'bg-conservative-deep text-white' : 'bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800'"
+                  class="btn ripple">
+            <span x-text="g.icon + ' ' + g.label + ' 보수마당'"></span>
+          </button>
+        </template>
+      </div>
+
+      <!-- 본인 세대 안내 -->
+      <div x-show="profile.loggedIn && subGen !== profile.generation"
+           class="rounded-xl bg-amber-50 dark:bg-amber-900/30 border border-amber-200 p-4 mb-4 text-sm">
+        ⓘ 본인 세대 공간이 아닙니다. 다른 세대 의견은 <button class="underline font-bold" @click="goto('plaza')">자유광장</button>에서 확인하세요. (읽기 전용)
+      </div>
+
+      <div class="grid gap-4">
+        <template x-for="p in filteredPosts('conservative', subGen)" :key="'cp_'+p.id">
+          <article @click="openPost(p)" class="ripple cursor-pointer rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-5 hover:shadow-md">
+            <div x-html="postCardHtml(p)"></div>
+          </article>
+        </template>
+        <div x-show="filteredPosts('conservative', subGen).length === 0" class="text-center py-12 text-zinc-500">아직 글이 없습니다. 첫 글을 남겨보세요!</div>
+      </div>
+    </section>
+
+
+    <!-- ============ 진보마다 ============ -->
+    <section x-show="route === 'progressive'" x-transition>
+      <div class="rounded-2xl bg-progressive-pale dark:bg-blue-900/20 p-6 mb-6 border border-progressive-soft">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 class="text-3xl font-black text-progressive-deep">🌱 진보마다</h1>
+            <p class="text-zinc-700 dark:text-zinc-200 mt-1">진보 성향 게시물 전용 공간 — 본인 세대 마당에서만 글을 쓸 수 있어요.</p>
+          </div>
+          <button @click="newPost('progressive')" class="btn ripple bg-progressive-deep text-white">✏️ 글쓰기</button>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap gap-2 mb-6">
+        <template x-for="g in generations" :key="'pg_'+g.key">
+          <button @click="subGen = g.key"
+                  :class="subGen === g.key ? 'bg-progressive-deep text-white' : 'bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800'"
+                  class="btn ripple">
+            <span x-text="g.icon + ' ' + g.label + ' 진보마다'"></span>
+          </button>
+        </template>
+      </div>
+
+      <div x-show="profile.loggedIn && subGen !== profile.generation"
+           class="rounded-xl bg-amber-50 dark:bg-amber-900/30 border border-amber-200 p-4 mb-4 text-sm">
+        ⓘ 본인 세대 공간이 아닙니다. 다른 세대 의견은 <button class="underline font-bold" @click="goto('plaza')">자유광장</button>에서 확인하세요. (읽기 전용)
+      </div>
+
+      <div class="grid gap-4">
+        <template x-for="p in filteredPosts('progressive', subGen)" :key="'pp_'+p.id">
+          <article @click="openPost(p)" class="ripple cursor-pointer rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-5 hover:shadow-md">
+            <div x-html="postCardHtml(p)"></div>
+          </article>
+        </template>
+        <div x-show="filteredPosts('progressive', subGen).length === 0" class="text-center py-12 text-zinc-500">아직 글이 없습니다. 첫 글을 남겨보세요!</div>
+      </div>
+    </section>
+
+
+    <!-- ============ 자유광장 ============ -->
+    <section x-show="route === 'plaza'" x-transition>
+      <div class="rounded-2xl bg-brand-pale dark:bg-emerald-900/20 p-6 mb-6 border border-brand/30">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 class="text-3xl font-black text-brand">🌿 자유광장</h1>
+            <p class="text-zinc-700 dark:text-zinc-200 mt-1">세대도 정치도 자유롭게 — 서로의 생각이 만나는 광장</p>
+          </div>
+          <button @click="newPost('plaza')" class="btn ripple bg-brand text-white">✏️ 글쓰기</button>
+        </div>
+      </div>
+
+      <!-- 태그 필터 -->
+      <div class="flex flex-wrap gap-2 mb-6">
+        <template x-for="t in plazaTags" :key="'tag_'+t">
+          <button @click="toggleTag(t)"
+                  :class="activeTags.includes(t) ? 'bg-brand text-white' : 'bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800'"
+                  class="btn ripple text-sm">
+            <span x-text="'#' + t"></span>
+          </button>
+        </template>
+      </div>
+
+      <div class="grid gap-4">
+        <template x-for="p in filteredPosts('plaza', null)" :key="'plz_'+p.id">
+          <article @click="openPost(p)" class="ripple cursor-pointer rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-5 hover:shadow-md">
+            <div x-html="postCardHtml(p)"></div>
+          </article>
+        </template>
+      </div>
+    </section>
+
+
+    <!-- ============ 정치싸움판 ============ -->
+    <section x-show="route === 'battle'" x-transition>
+      <div class="rounded-2xl p-6 mb-6 border-2"
+           :class="battleOpen ? 'border-red-500 battle-bg' : 'border-zinc-300 bg-zinc-50 dark:bg-zinc-900 dark:border-zinc-700'">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h1 class="text-3xl font-black" :class="battleOpen ? 'text-red-700' : 'text-zinc-700 dark:text-zinc-200'">
+              🔥 정치싸움판
+              <span x-show="battleOpen" class="ml-2 text-sm bg-red-600 text-white px-2 py-1 rounded-full align-middle animate-pulse">격전 진행중</span>
+            </h1>
+            <p class="text-zinc-700 dark:text-zinc-200 mt-1">매일 오전 9–12시 / 오후 6–9시 (KST) — 고강도 토론 전용 공간</p>
+          </div>
+          <div class="text-center sm:text-right">
+            <div class="text-xs text-zinc-500" x-text="battleOpen ? '종료까지' : '오픈까지'"></div>
+            <div class="tabular text-4xl font-black" :class="battleOpen ? 'text-red-700' : 'text-brand'" x-text="battleCountdown"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 닫힘 잠금 화면 -->
+      <div x-show="!battleOpen" class="rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-10 text-center">
+        <div class="text-6xl mb-4">🔒</div>
+        <h2 class="text-2xl font-black mb-2">곧 열립니다</h2>
+        <p class="text-zinc-600 dark:text-zinc-300 mb-4">정치싸움판은 매일 오전 9–12시, 오후 6–9시에만 열려요.</p>
+        <div class="tabular text-5xl font-black text-brand" x-text="battleCountdown"></div>
+        <p class="text-sm text-zinc-500 mt-4">잠긴 시간에도 자유광장에서 자유롭게 토론하실 수 있어요.</p>
+      </div>
+
+      <!-- 열림: 토론 카드 -->
+      <div x-show="battleOpen">
+        <!-- 오늘의 격돌 주제 -->
+        <div class="rounded-2xl battle-bg battle-active border-2 border-red-400 p-6 mb-6">
+          <div class="text-xs font-bold text-red-700 mb-1">⚡ 오늘의 격돌 주제</div>
+          <h2 class="text-2xl sm:text-3xl font-black mb-3">"20대 vs 60대 — 연금 개혁, 누가 더 손해인가?"</h2>
+
+          <!-- 실시간 참여자 -->
+          <div class="flex flex-wrap gap-4 text-sm mb-4">
+            <span class="bg-white dark:bg-zinc-900 px-3 py-1.5 rounded-full font-bold">👥 참여자 <span class="tabular" x-text="battleParticipants"></span>명</span>
+            <span class="bg-blue-100 dark:bg-blue-900/40 px-3 py-1.5 rounded-full">🧑 청년 38%</span>
+            <span class="bg-emerald-100 dark:bg-emerald-900/40 px-3 py-1.5 rounded-full">👨 중장년 27%</span>
+            <span class="bg-amber-100 dark:bg-amber-900/40 px-3 py-1.5 rounded-full">🧓 시니어 35%</span>
+          </div>
+
+          <!-- 투표 -->
+          <div class="grid sm:grid-cols-4 gap-2 mb-4">
+            <button @click="battleVote('agree')" class="btn ripple bg-emerald-500 text-white font-bold">👍 동의 <span class="tabular" x-text="'(' + battle.votes.agree + ')'"></span></button>
+            <button @click="battleVote('disagree')" class="btn ripple bg-red-500 text-white font-bold">👎 반대 <span class="tabular" x-text="'(' + battle.votes.disagree + ')'"></span></button>
+            <button @click="battleVote('understand')" class="btn ripple understand-btn">🤝 이해 <span class="tabular" x-text="'(' + battle.votes.understand + ')'"></span></button>
+            <button @click="battlePredict()" class="btn ripple bg-amber-500 text-white font-bold">🏆 승자 예측</button>
+          </div>
+        </div>
+
+        <!-- 글쓰기 -->
+        <div class="mb-4">
+          <button @click="newPost('battle')" class="btn ripple bg-red-600 text-white w-full sm:w-auto">⚔️ 격전 글쓰기 (싸움판은 오픈 시에만)</button>
+        </div>
+
+        <!-- 글 목록 -->
+        <div class="grid gap-4">
+          <template x-for="p in filteredPosts('battle', null)" :key="'bt_'+p.id">
+            <article @click="openPost(p)" class="ripple cursor-pointer rounded-2xl bg-white dark:bg-zinc-900 border-2 border-red-200 dark:border-red-900/40 p-5 hover:shadow-lg">
+              <div x-html="postCardHtml(p)"></div>
+            </article>
+          </template>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ============ 정치뉴스 모음 ============ -->
+    <section x-show="route === 'news'" x-transition>
+      <h1 class="text-3xl font-black mb-2">📰 정치뉴스 모음</h1>
+      <p class="text-zinc-600 dark:text-zinc-300 mb-6">주요 언론의 정치 뉴스를 한눈에 — 광장 회원들의 의견과 함께 보세요.</p>
+      <div class="grid md:grid-cols-2 gap-4">
+        <template x-for="n in newsList" :key="'n_'+n.id">
+          <article class="rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-5 hover:shadow-md ripple">
+            <div class="flex items-center gap-2 text-xs text-zinc-500 mb-2">
+              <span class="bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded" x-text="n.source"></span>
+              <span x-text="n.time"></span>
+            </div>
+            <h3 class="text-lg font-bold leading-snug mb-2" x-text="n.title"></h3>
+            <p class="text-sm text-zinc-600 dark:text-zinc-300 line-clamp-3 mb-3" x-text="n.summary"></p>
+            <div class="flex items-center gap-2 text-xs">
+              <button class="btn !min-h-0 !py-1 !px-2 bg-brand text-white text-xs">광장에서 토론 →</button>
+            </div>
+          </article>
+        </template>
+      </div>
+    </section>
+
+
+    <!-- ============ 내 프로필 ============ -->
+    <section x-show="route === 'profile'" x-transition>
+      <template x-if="!profile.loggedIn">
+        <div class="rounded-2xl bg-white dark:bg-zinc-900 p-10 text-center border border-zinc-200 dark:border-zinc-800">
+          <div class="text-5xl mb-3">🔑</div>
+          <h2 class="text-2xl font-black mb-2">로그인이 필요해요</h2>
+          <p class="text-zinc-600 mb-4">소셜 로그인으로 1초 만에 시작하세요.</p>
+          <button @click="openLogin = true" class="btn ripple bg-brand text-white">로그인 / 회원가입</button>
+        </div>
+      </template>
+
+      <template x-if="profile.loggedIn">
+        <div class="grid lg:grid-cols-3 gap-6">
+          <!-- 프로필 카드 -->
+          <div class="lg:col-span-1 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6">
+            <div class="text-center">
+              <div class="text-7xl mb-2" x-text="profile.avatar"></div>
+              <h2 class="text-2xl font-black" x-text="profile.nickname"></h2>
+              <div class="mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-bold"
+                   :class="badgeClass(profile.leaning)">
+                <span x-text="leaningIcon(profile.leaning)"></span>
+                <span x-text="leaningLabel(profile.leaning)"></span>
+              </div>
+              <div class="mt-3 flex items-center justify-center gap-2 text-sm text-zinc-600 dark:text-zinc-300">
+                <span x-text="profile.country_flag"></span>
+                <span x-text="profile.country_name"></span>
+                <template x-if="profile.country_code === 'CN'">
+                  <span class="px-2 py-0.5 text-xs bg-red-100 text-red-700 rounded">외국 IP 확인</span>
+                </template>
+              </div>
+              <div class="mt-2 text-sm text-zinc-500">
+                <span x-text="generationLabel(profile.generation)"></span> · 가입 <span x-text="profile.joined"></span>
+              </div>
+
+              <div class="mt-5 p-4 rounded-xl bg-brand-pale dark:bg-emerald-900/30">
+                <div class="text-xs text-zinc-500">중개인 점수</div>
+                <div class="text-3xl font-black text-brand" x-text="profile.score + ' 점'"></div>
+                <div class="text-xs text-zinc-500 mt-1">댓글에서 "이해" 받을수록 올라가요</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 편집 -->
+          <div class="lg:col-span-2 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6">
+            <h3 class="text-xl font-black mb-4">프로필 편집</h3>
+            <div class="space-y-5">
+              <div>
+                <label class="block text-sm font-bold mb-2">닉네임</label>
+                <input type="text" x-model="profile.nickname" class="w-full p-3 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-transparent" />
+              </div>
+
+              <div>
+                <label class="block text-sm font-bold mb-2">아바타</label>
+                <div class="flex flex-wrap gap-2">
+                  <template x-for="a in avatars" :key="'a_'+a">
+                    <button @click="profile.avatar = a"
+                            :class="profile.avatar === a ? 'border-brand bg-brand-pale' : 'border-zinc-200 dark:border-zinc-700'"
+                            class="text-3xl w-14 h-14 rounded-xl border-2 ripple flex items-center justify-center">
+                      <span x-text="a"></span>
+                    </button>
+                  </template>
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-sm font-bold mb-2">정치 성향</label>
+                <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                  <template x-for="l in leanings" :key="'l_'+l.key">
+                    <button @click="profile.leaning = l.key"
+                            :class="profile.leaning === l.key ? 'ring-2 ring-brand scale-105' : ''"
+                            class="ripple p-3 rounded-xl border text-center text-sm font-bold"
+                            :style="`background:${l.bg};color:${l.fg};border-color:${l.border}`">
+                      <div class="text-2xl" x-text="l.icon"></div>
+                      <div x-text="l.label"></div>
+                    </button>
+                  </template>
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-sm font-bold mb-2">연령대 (소셜 로그인 시 자동)</label>
+                <div class="flex flex-wrap gap-2">
+                  <template x-for="g in generations" :key="'gp_'+g.key">
+                    <button @click="profile.generation = g.key"
+                            :class="profile.generation === g.key ? 'bg-brand text-white' : 'bg-zinc-100 dark:bg-zinc-800'"
+                            class="btn ripple">
+                      <span x-text="g.icon + ' ' + g.label"></span>
+                    </button>
+                  </template>
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-sm font-bold mb-2">국적 (IP 기반 자동 — 시뮬레이션)</label>
+                <div class="flex flex-wrap gap-2">
+                  <template x-for="c in countriesShort" :key="'c_'+c.code">
+                    <button @click="setCountry(c)"
+                            :class="profile.country_code === c.code ? 'bg-brand text-white' : 'bg-zinc-100 dark:bg-zinc-800'"
+                            class="btn ripple text-sm">
+                      <span x-text="c.flag + ' ' + c.name"></span>
+                    </button>
+                  </template>
+                </div>
+                <p class="text-xs text-zinc-500 mt-2">⚠️ 중국 IP 감지 시 악성 댓글 테러 방지를 위해 국적이 공개됩니다.</p>
+              </div>
+
+              <div class="flex gap-2 pt-2">
+                <button @click="saveProfile()" class="btn ripple bg-brand text-white">저장</button>
+                <button @click="logout()" class="btn ripple bg-zinc-200 dark:bg-zinc-700">로그아웃</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+    </section>
+  </main>
+
+
+  <!-- ========== 게시글 상세 모달 ========== -->
+  <div x-show="postModal.open" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop" @click.self="postModal.open=false">
+    <div x-show="postModal.open" x-transition class="bg-white dark:bg-zinc-900 rounded-3xl max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+      <template x-if="postModal.post">
+        <div class="p-6 sm:p-8">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2 text-sm">
+              <span class="px-2 py-1 bg-brand-pale text-brand rounded-full font-bold" x-text="postModal.post.zone"></span>
+              <span class="text-zinc-500" x-text="postModal.post.time"></span>
+            </div>
+            <button @click="postModal.open=false" class="btn ripple bg-zinc-100 dark:bg-zinc-800" aria-label="닫기">✕</button>
+          </div>
+
+          <h2 class="text-2xl sm:text-3xl font-black mb-4 leading-snug" x-text="postModal.post.title"></h2>
+
+          <!-- 작성자 -->
+          <div class="flex items-center gap-3 mb-5 pb-5 border-b border-zinc-200 dark:border-zinc-800">
+            <span class="text-3xl" x-text="postModal.post.author.avatar"></span>
+            <div>
+              <div class="font-bold flex items-center gap-2 flex-wrap">
+                <span x-text="postModal.post.author.nickname"></span>
+                <span class="text-xs px-2 py-0.5 rounded-full" :class="badgeClass(postModal.post.author.leaning)" x-text="leaningLabel(postModal.post.author.leaning)"></span>
+                <span class="text-xs" x-text="postModal.post.author.country_flag"></span>
+                <span class="text-xs text-zinc-500" x-text="generationLabel(postModal.post.author.generation)"></span>
+              </div>
+              <div class="text-xs text-zinc-500" x-text="'중개인 점수 ' + postModal.post.author.score"></div>
+            </div>
+          </div>
+
+          <p class="whitespace-pre-line text-base sm:text-lg leading-loose mb-6" x-text="postModal.post.content"></p>
+
+          <!-- 태그 -->
+          <div class="flex flex-wrap gap-2 mb-6">
+            <template x-for="t in postModal.post.tags" :key="'mt_'+t">
+              <span class="text-xs px-2 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-full" x-text="'#' + t"></span>
+            </template>
+          </div>
+
+          <!-- 투표 -->
+          <div class="grid grid-cols-3 gap-2 mb-6">
+            <button @click="vote(postModal.post, 'agree')" class="btn ripple bg-emerald-500 text-white"><span class="block text-xs">동의</span><span class="text-xl tabular" x-text="postModal.post.votes.agree"></span></button>
+            <button @click="vote(postModal.post, 'disagree')" class="btn ripple bg-red-500 text-white"><span class="block text-xs">반대</span><span class="text-xl tabular" x-text="postModal.post.votes.disagree"></span></button>
+            <button @click="vote(postModal.post, 'understand')" class="btn ripple understand-btn"><span class="block text-xs">🤝 이해</span><span class="text-xl tabular" x-text="postModal.post.votes.understand"></span></button>
+          </div>
+
+          <!-- 댓글 -->
+          <h3 class="text-lg font-black mb-3">댓글 <span class="text-zinc-500" x-text="'(' + postModal.post.comments.length + ')'"></span></h3>
+          <div class="space-y-3 mb-4">
+            <template x-for="(c, ci) in postModal.post.comments" :key="'cm_'+ci">
+              <div class="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800">
+                <div class="flex items-center gap-2 text-sm mb-1 flex-wrap">
+                  <span x-text="c.author.avatar"></span>
+                  <span class="font-bold" x-text="c.author.nickname"></span>
+                  <span class="text-xs px-2 py-0.5 rounded-full" :class="badgeClass(c.author.leaning)" x-text="leaningLabel(c.author.leaning)"></span>
+                  <span class="text-xs" x-text="c.author.country_flag"></span>
+                  <span class="text-xs text-zinc-500" x-text="generationLabel(c.author.generation)"></span>
+                </div>
+                <p class="text-base" x-text="c.text"></p>
+                <button @click="acknowledge(c)" class="mt-2 text-xs px-3 py-1.5 rounded-full understand-btn ripple">🤝 상대 의견 인정 <span x-text="'(' + c.acks + ')'"></span></button>
+              </div>
+            </template>
+            <div x-show="postModal.post.comments.length === 0" class="text-zinc-500 text-center py-4">첫 댓글을 남겨보세요.</div>
+          </div>
+
+          <!-- 댓글 작성 -->
+          <div class="flex gap-2">
+            <input type="text" x-model="postModal.newComment" placeholder="댓글을 입력하세요 (인신공격 금지)"
+                   class="flex-1 p-3 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-transparent" />
+            <button @click="addComment()" class="btn ripple bg-brand text-white">등록</button>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+
+
+  <!-- ========== 로그인/회원가입 모달 ========== -->
+  <div x-show="openLogin" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop" @click.self="openLogin=false">
+    <div x-show="openLogin" x-transition class="bg-white dark:bg-zinc-900 rounded-3xl max-w-md w-full p-8 shadow-2xl">
+      <div class="text-center mb-6">
+        <div class="w-14 h-14 mx-auto mb-2 rounded-2xl bg-brand flex items-center justify-center text-white text-2xl font-black">중</div>
+        <h2 class="text-2xl font-black">중개광장에 오신 걸 환영합니다</h2>
+        <p class="text-sm text-zinc-500 mt-1">30초 만에 시작하세요</p>
+      </div>
+
+      <!-- 1단계: 소셜 로그인 -->
+      <template x-if="signupStep === 1">
+        <div class="space-y-3">
+          <button @click="socialLogin('kakao')" class="w-full btn ripple bg-[#FEE500] text-zinc-900 font-bold">💬 카카오로 1초 시작</button>
+          <button @click="socialLogin('naver')" class="w-full btn ripple bg-[#03C75A] text-white font-bold">N 네이버로 시작</button>
+          <button @click="socialLogin('google')" class="w-full btn ripple bg-white border-2 border-zinc-300 text-zinc-900 font-bold">G 구글로 시작</button>
+          <p class="text-xs text-zinc-500 text-center pt-2">로그인 시 이용약관 및 개인정보처리방침에 동의한 것으로 간주됩니다.</p>
+        </div>
+      </template>
+
+      <!-- 2단계: 정치성향·국적·연령대 -->
+      <template x-if="signupStep === 2">
+        <div class="space-y-5">
+          <div>
+            <h3 class="font-bold mb-2">정치 성향을 선택해주세요 (필수)</h3>
+            <div class="grid grid-cols-5 gap-2">
+              <template x-for="l in leanings" :key="'sl_'+l.key">
+                <button @click="signupData.leaning = l.key"
+                        :class="signupData.leaning === l.key ? 'ring-2 ring-brand scale-105' : ''"
+                        class="ripple p-2 rounded-xl border text-center text-xs font-bold"
+                        :style="`background:${l.bg};color:${l.fg};border-color:${l.border}`">
+                  <div class="text-xl" x-text="l.icon"></div>
+                  <div x-text="l.label"></div>
+                </button>
+              </template>
+            </div>
+          </div>
+
+          <div>
+            <h3 class="font-bold mb-2">연령대 (소셜 로그인 자동·시뮬레이션)</h3>
+            <div class="grid grid-cols-3 gap-2">
+              <template x-for="g in generations" :key="'sg_'+g.key">
+                <button @click="signupData.generation = g.key"
+                        :class="signupData.generation === g.key ? 'bg-brand text-white' : 'bg-zinc-100 dark:bg-zinc-800'"
+                        class="btn ripple text-sm">
+                  <span x-text="g.icon + ' ' + g.label"></span>
+                </button>
+              </template>
+            </div>
+          </div>
+
+          <div class="p-3 rounded-xl bg-brand-pale dark:bg-emerald-900/30 text-sm">
+            <div class="flex items-center gap-2">
+              <span class="text-lg" x-text="detectedCountry.flag"></span>
+              <span class="font-bold">감지된 국적:</span>
+              <span x-text="detectedCountry.name"></span>
+            </div>
+            <p class="text-xs text-zinc-500 mt-1">IP 기반으로 자동 설정됩니다.</p>
+            <template x-if="detectedCountry.code === 'CN'">
+              <p class="text-xs text-red-700 mt-1">⚠️ 악성 댓글 테러 방지를 위해 국적이 공개됩니다.</p>
+            </template>
+          </div>
+
+          <button @click="completeSignup()" :disabled="!signupData.leaning || !signupData.generation"
+                  :class="(!signupData.leaning || !signupData.generation) ? 'opacity-50 cursor-not-allowed' : ''"
+                  class="w-full btn ripple bg-brand text-white font-bold">시작하기 →</button>
+        </div>
+      </template>
+    </div>
+  </div>
+
+
+  <!-- ========== 첫방문 가이드 (4슬라이드) ========== -->
+  <div x-show="guide.open" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop" @click.self="guide.open=false">
+    <div class="bg-white dark:bg-zinc-900 rounded-3xl max-w-lg w-full p-8 shadow-2xl text-center guide-slide">
+      <div class="text-7xl mb-4" x-text="guide.slides[guide.idx].icon"></div>
+      <h2 class="text-2xl font-black mb-2" x-text="guide.slides[guide.idx].title"></h2>
+      <p class="text-lg text-zinc-600 dark:text-zinc-300 mb-6" x-text="guide.slides[guide.idx].text"></p>
+
+      <div class="flex items-center justify-center gap-2 mb-4">
+        <template x-for="(s, i) in guide.slides" :key="'gd_'+i">
+          <span class="w-3 h-3 rounded-full" :class="guide.idx === i ? 'bg-brand' : 'bg-zinc-300'"></span>
+        </template>
+      </div>
+
+      <div class="flex gap-2">
+        <button @click="guide.idx = Math.max(0, guide.idx-1)" :disabled="guide.idx===0"
+                class="flex-1 btn ripple bg-zinc-100 dark:bg-zinc-800" :class="guide.idx===0?'opacity-50':''">이전</button>
+        <template x-if="guide.idx < guide.slides.length - 1">
+          <button @click="guide.idx++" class="flex-1 btn ripple bg-brand text-white">다음</button>
+        </template>
+        <template x-if="guide.idx === guide.slides.length - 1">
+          <button @click="closeGuide()" class="flex-1 btn ripple bg-brand text-white">시작하기 →</button>
+        </template>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ========== 글쓰기 모달 ========== -->
+  <div x-show="writer.open" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop" @click.self="writer.open=false">
+    <div class="bg-white dark:bg-zinc-900 rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-5">
+        <h2 class="text-2xl font-black">✏️ 새 글 작성 <span class="text-sm font-medium text-zinc-500" x-text="'· ' + writer.zoneLabel"></span></h2>
+        <button @click="writer.open=false" class="btn ripple bg-zinc-100 dark:bg-zinc-800" aria-label="닫기">✕</button>
+      </div>
+
+      <div class="space-y-4">
+        <input type="text" x-model="writer.title" placeholder="제목" class="w-full p-3 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-transparent text-lg" />
+        <textarea x-model="writer.content" rows="8" placeholder="여러분의 생각을 자유롭게 적어주세요. (인신공격·혐오 표현 금지)"
+                  class="w-full p-3 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-transparent"></textarea>
+
+        <div>
+          <div class="text-sm font-bold mb-2">태그 (자동 추천)</div>
+          <div class="flex flex-wrap gap-2">
+            <template x-for="t in plazaTags" :key="'wt_'+t">
+              <button @click="toggleWriterTag(t)"
+                      :class="writer.tags.includes(t) ? 'bg-brand text-white' : 'bg-zinc-100 dark:bg-zinc-800'"
+                      class="btn ripple text-sm !py-2">#<span x-text="t"></span></button>
+            </template>
+          </div>
+        </div>
+
+        <div class="flex gap-2 pt-2">
+          <button @click="submitPost()" class="btn ripple bg-brand text-white flex-1">게시하기</button>
+          <button @click="writer.open=false" class="btn ripple bg-zinc-200 dark:bg-zinc-700">취소</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ========== 푸터 ========== -->
+  <footer class="border-t border-zinc-200 dark:border-zinc-800 mt-12 bg-white dark:bg-zinc-900">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-8 grid sm:grid-cols-3 gap-6 text-sm">
+      <div>
+        <div class="flex items-center gap-2 mb-2">
+          <div class="w-8 h-8 rounded-lg bg-brand flex items-center justify-center text-white font-black">중</div>
+          <span class="font-black text-lg">중개광장</span>
+        </div>
+        <p class="text-zinc-500">서로 다른 생각이 만나도, 이해가 시작되는 광장</p>
+      </div>
+      <div>
+        <h4 class="font-bold mb-2">광장 소개</h4>
+        <ul class="space-y-1 text-zinc-600 dark:text-zinc-300">
+          <li><a href="#" class="hover:underline">이용약관</a></li>
+          <li><a href="#" class="hover:underline">개인정보처리방침</a></li>
+          <li><a href="#" class="hover:underline">문의하기</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4 class="font-bold mb-2">개발자 모드 (데모)</h4>
+        <button @click="simulateChinaIP()" class="text-xs px-3 py-2 rounded-lg bg-amber-100 text-amber-800 hover:bg-amber-200">🇨🇳 중국 IP 시뮬레이션</button>
+        <button @click="resetDemo()" class="text-xs px-3 py-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 ml-1">데모 초기화</button>
+      </div>
+    </div>
+    <div class="border-t border-zinc-200 dark:border-zinc-800 py-4 text-center text-xs text-zinc-500">
+      © 2026 중개광장 · 모든 표현은 인신공격 없이 · Made with 🤝 in Korea
+    </div>
+  </footer>
+
+
+<script>
+/* ============================================================
+   중개광장 — 메인 스크립트 (Vanilla JS + Alpine.js)
+   - 가짜 데이터, 시간 잠금, IP 감지, localStorage 저장
+   ============================================================ */
+
+function junggaePlaza() {
+  return {
+    // -------- 라우팅 / UI 상태 --------
+    route: 'home',          // home, conservative, progressive, plaza, battle, news, profile
+    subGen: 'youth',        // 보수마당/진보마다 안에서 선택된 세대 (youth, middle, senior)
+    mobileNav: false,
+    darkMode: false,
+    openLogin: false,
+    signupStep: 1,
+    signupData: { leaning: '', generation: '' },
+    activeTags: [],
+    battleParticipants: 0,
+
+    // -------- 모달들 --------
+    postModal: { open: false, post: null, newComment: '' },
+    writer: { open: false, title: '', content: '', tags: [], zone: 'plaza', zoneLabel: '자유광장' },
+    guide: {
+      open: false, idx: 0,
+      slides: [
+        { icon: '🌿', title: '자유광장에서 만나요', text: '세대도 정치도 자유롭게 — 모든 의견을 환영합니다.' },
+        { icon: '🛡️🌱', title: '내 세대 마당이 있어요', text: '보수/진보마당은 본인 세대 공간에서만 글을 쓸 수 있어요.' },
+        { icon: '🔥', title: '정치싸움판은 시간제', text: '매일 오전 9–12시, 오후 6–9시에만 격전이 열려요.' },
+        { icon: '🤝', title: '"이해" 버튼을 눌러주세요', text: '상대 의견을 인정하면 중개인 점수가 올라가요.' }
+      ]
+    },
+
+    // -------- 정치 성향 / 세대 / 국가 정의 --------
+    leanings: [
+      { key:'ext_right', label:'극보수', icon:'🛡️',  bg:'#FEE2E2', fg:'#991B1B', border:'#FCA5A5' },
+      { key:'right',     label:'보수',   icon:'⚖️',  bg:'#FFEDD5', fg:'#9A3412', border:'#FDBA74' },
+      { key:'center',    label:'중립',   icon:'⚪', bg:'#F3F4F6', fg:'#374151', border:'#D1D5DB' },
+      { key:'left',      label:'진보',   icon:'🌱', bg:'#DBEAFE', fg:'#1E40AF', border:'#93C5FD' },
+      { key:'ext_left',  label:'극진보', icon:'🔥', bg:'#EDE9FE', fg:'#5B21B6', border:'#C4B5FD' }
+    ],
+    generations: [
+      { key:'youth',  label:'청년층 (20~30대)', icon:'🧑' },
+      { key:'middle', label:'중장년층 (40~50대)', icon:'👨' },
+      { key:'senior', label:'시니어층 (60대+)', icon:'🧓' }
+    ],
+    countriesShort: [
+      { code:'KR', name:'대한민국', flag:'🇰🇷' },
+      { code:'US', name:'미국',     flag:'🇺🇸' },
+      { code:'JP', name:'일본',     flag:'🇯🇵' },
+      { code:'CN', name:'중국',     flag:'🇨🇳' },
+      { code:'GB', name:'영국',     flag:'🇬🇧' },
+      { code:'DE', name:'독일',     flag:'🇩🇪' },
+      { code:'FR', name:'프랑스',   flag:'🇫🇷' },
+      { code:'CA', name:'캐나다',   flag:'🇨🇦' },
+      { code:'AU', name:'호주',     flag:'🇦🇺' },
+      { code:'RU', name:'러시아',   flag:'🇷🇺' }
+    ],
+    countryMap: {
+      KR:'대한민국', US:'미국', JP:'일본', CN:'중국', GB:'영국', DE:'독일',
+      FR:'프랑스', CA:'캐나다', AU:'호주', RU:'러시아', IN:'인도', BR:'브라질',
+      MX:'멕시코', IT:'이탈리아', ES:'스페인', NL:'네덜란드', SG:'싱가포르',
+      VN:'베트남', TH:'태국', ID:'인도네시아'
+    },
+    flagMap: {
+      KR:'🇰🇷', US:'🇺🇸', JP:'🇯🇵', CN:'🇨🇳', GB:'🇬🇧', DE:'🇩🇪',
+      FR:'🇫🇷', CA:'🇨🇦', AU:'🇦🇺', RU:'🇷🇺', IN:'🇮🇳', BR:'🇧🇷',
+      MX:'🇲🇽', IT:'🇮🇹', ES:'🇪🇸', NL:'🇳🇱', SG:'🇸🇬',
+      VN:'🇻🇳', TH:'🇹🇭', ID:'🇮🇩'
+    },
+    detectedCountry: { code:'KR', name:'대한민국', flag:'🇰🇷' },
+
+    avatars: ['🦊','🐻','🐯','🐼','🦁'],
+
+    // -------- 메인 메뉴 --------
+    menus: [
+      { id:'home',         label:'홈' },
+      { id:'conservative', label:'보수마당' },
+      { id:'progressive',  label:'진보마다' },
+      { id:'plaza',        label:'자유광장' },
+      { id:'battle',       label:'정치싸움판' },
+      { id:'news',         label:'정치뉴스 모음' },
+      { id:'profile',      label:'내 프로필' }
+    ],
+
+    plazaTags: ['보수','진보','중립','정책','선거','세대대립','연금','부동산','외교','경제'],
+
+    // -------- 정치싸움판 상태 --------
+    battleOpen: false,
+    battleCountdown: '--:--:--',
+    battle: { votes: { agree: 142, disagree: 128, understand: 67, predict_conservative: 53, predict_progressive: 49 } },
+
+    // -------- 회원 프로필 (localStorage) --------
+    profile: {
+      loggedIn: false,
+      nickname: '게스트',
+      avatar: '🦊',
+      leaning: 'center',
+      generation: 'youth',
+      country_code: 'KR',
+      country_name: '대한민국',
+      country_flag: '🇰🇷',
+      joined: '2026.05.26',
+      score: 0
+    },
+
+    // -------- 가짜 데이터: 유저 5명 --------
+    fakeUsers: [
+      { nickname:'광장지킴이', avatar:'🐻', leaning:'center',    generation:'middle', country_code:'KR', country_flag:'🇰🇷', score: 142 },
+      { nickname:'청년의외침', avatar:'🦊', leaning:'left',      generation:'youth',  country_code:'KR', country_flag:'🇰🇷', score: 87 },
+      { nickname:'전직공무원', avatar:'🦁', leaning:'right',     generation:'senior', country_code:'KR', country_flag:'🇰🇷', score: 211 },
+      { nickname:'미국유학생', avatar:'🐯', leaning:'left',      generation:'youth',  country_code:'US', country_flag:'🇺🇸', score: 34 },
+      { nickname:'외국인친구', avatar:'🐼', leaning:'ext_right', generation:'middle', country_code:'CN', country_flag:'🇨🇳', score: 9 }
+    ],
+
+    // -------- 가짜 게시물 10개 --------
+    posts: [],
+
+    // -------- 뉴스 가짜 데이터 --------
+    newsList: [
+      { id:1, source:'조선일보', time:'1시간 전', title:'국회, 연금개혁안 처리 두고 충돌', summary:'여야가 연금개혁 방향을 놓고 본회의에서 격돌하며 처리 일정이 안갯속이다.' },
+      { id:2, source:'한겨레',   time:'2시간 전', title:'청년층, 부동산 정책에 불만 폭발', summary:'20·30대 청년층이 정부의 부동산 대책에 강한 비판을 쏟아내고 있다.' },
+      { id:3, source:'중앙일보', time:'3시간 전', title:'시니어 표심, 어느 쪽으로 가나', summary:'60대 이상 유권자 표심이 이번 선거의 변수로 부상하고 있다.' },
+      { id:4, source:'경향신문', time:'5시간 전', title:'외교 정책 둘러싼 여야 격돌', summary:'한미·한중 외교 노선을 두고 정당 간 입장차가 뚜렷하다.' }
+    ],
+
+    generationHot: [
+      { key:'youth',  label:'청년층',   icon:'🧑', topic:'전세사기 처벌 강화, 정말 효과 있을까?', share:38, bg:'bg-blue-50 dark:bg-blue-900/30' },
+      { key:'middle', label:'중장년층', icon:'👨', topic:'자녀 교육비 부담, 정책 어디까지?',     share:27, bg:'bg-emerald-50 dark:bg-emerald-900/30' },
+      { key:'senior', label:'시니어층', icon:'🧓', topic:'기초연금 인상, 재원은 어디서?',       share:35, bg:'bg-amber-50 dark:bg-amber-900/30' }
+    ],
+
+    // ============================================================
+    // 초기화
+    // ============================================================
+    init() {
+      this.loadProfile();
+      this.seedPosts();
+      this.detectIP();
+      this.tickBattle();
+      setInterval(() => this.tickBattle(), 1000);
+      // 실시간 참여자 시뮬레이션
+      this.battleParticipants = 1247;
+      setInterval(() => {
+        this.battleParticipants += Math.floor(Math.random() * 7) - 3;
+        if (this.battleParticipants < 800) this.battleParticipants = 800;
+      }, 3000);
+      // 첫방문 가이드
+      if (!localStorage.getItem('jg_guide_shown')) {
+        setTimeout(() => { this.guide.open = true; }, 600);
+      }
+      // 라우팅 (해시)
+      window.addEventListener('hashchange', () => this.applyHash());
+      this.applyHash();
+    },
+
+    applyHash() {
+      const h = location.hash.replace('#','');
+      if (this.menus.find(m => m.id === h)) this.route = h;
+    },
+
+    goto(id) {
+      this.route = id;
+      location.hash = id;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+
+    toggleDark() {
+      this.darkMode = !this.darkMode;
+      localStorage.setItem('jg_dark', this.darkMode ? '1' : '0');
+    },
+
+    // ============================================================
+    // IP 자동 감지 (ipapi.co)
+    // ============================================================
+    async detectIP() {
+      try {
+        const res = await fetch('https://ipapi.co/json/', { cache: 'no-store' });
+        if (!res.ok) throw new Error('IP API 실패');
+        const data = await res.json();
+        const code = data.country_code || 'KR';
+        this.detectedCountry = {
+          code,
+          name: this.countryMap[code] || data.country_name || '기타국가',
+          flag: this.flagMap[code] || '🏳️'
+        };
+        // 프로필 미로그인 시에는 detectedCountry만 갱신, 로그인 후 가입 단계에서 적용
+        if (!this.profile.loggedIn) {
+          this.profile.country_code = this.detectedCountry.code;
+          this.profile.country_name = this.detectedCountry.name;
+          this.profile.country_flag = this.detectedCountry.flag;
+        }
+      } catch (e) {
+        console.warn('IP 감지 실패 — 기본값(KR) 사용:', e);
+      }
+    },
+
+    // ============================================================
+    // 정치싸움판 시간 잠금 (KST)
+    // ============================================================
+    tickBattle() {
+      // KST = UTC+9
+      const now = new Date();
+      const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
+      const kst = new Date(utcMs + 9 * 3600 * 1000);
+      const h = kst.getHours(), m = kst.getMinutes(), s = kst.getSeconds();
+
+      // 오픈 구간: 9:00-12:00, 18:00-21:00
+      const inMorning   = (h >= 9  && h < 12);
+      const inEvening   = (h >= 18 && h < 21);
+      this.battleOpen = inMorning || inEvening;
+
+      // 다음 이벤트까지 남은 시간 계산
+      let target;
+      if (inMorning) {
+        target = new Date(kst); target.setHours(12,0,0,0);
+      } else if (inEvening) {
+        target = new Date(kst); target.setHours(21,0,0,0);
+      } else if (h < 9) {
+        target = new Date(kst); target.setHours(9,0,0,0);
+      } else if (h < 18) {
+        target = new Date(kst); target.setHours(18,0,0,0);
+      } else {
+        // 21시 이후 → 다음날 9시
+        target = new Date(kst); target.setDate(target.getDate()+1); target.setHours(9,0,0,0);
+      }
+      const diff = Math.max(0, Math.floor((target - kst) / 1000));
+      const hh = String(Math.floor(diff/3600)).padStart(2,'0');
+      const mm = String(Math.floor((diff%3600)/60)).padStart(2,'0');
+      const ss = String(diff%60).padStart(2,'0');
+      this.battleCountdown = `${hh}:${mm}:${ss}`;
+    },
+
+    // ============================================================
+    // 가짜 데이터 생성
+    // ============================================================
+    seedPosts() {
+      const u = this.fakeUsers;
+      this.posts = [
+        { id:1, zone:'자유광장', zoneKey:'plaza', genKey:null, leanKey:null, title:'세대 간 연금 논쟁, 결국 누구의 책임인가요?',
+          content:'20대로서 기성세대가 만든 제도를 고스란히 떠안는 게 불공평하다고 느껴요. 하지만 부모님 세대 이야기를 들으면 또 다르더군요. 여러분 생각은?',
+          author:u[1], tags:['연금','세대대립','정책'], time:'1시간 전',
+          votes:{agree:84, disagree:31, understand:62}, comments:[
+            { author:u[2], text:'우리도 그 시대엔 그 시대대로 어려웠소. 서로 이해가 필요해요.', acks:14 },
+            { author:u[0], text:'양쪽 다 일리가 있습니다. 토론으로 풀어봅시다.', acks:23 }
+          ]},
+        { id:2, zone:'보수마당', zoneKey:'conservative', genKey:'senior', leanKey:'right', title:'국가 안보가 흔들리는 시대, 지금 필요한 것',
+          content:'평생 이 나라를 위해 살아온 사람으로서 요즘 안보 상황이 걱정스럽습니다. 단단한 동맹과 자주국방, 둘 다 필요합니다.',
+          author:u[2], tags:['외교','안보'], time:'2시간 전',
+          votes:{agree:121, disagree:18, understand:34}, comments:[
+            { author:u[0], text:'세대가 달라도 안보의 중요성은 공감합니다.', acks:9 }
+          ]},
+        { id:3, zone:'진보마다', zoneKey:'progressive', genKey:'youth', leanKey:'left', title:'주거권은 기본권입니다',
+          content:'전세사기와 월세 폭등에 시달리는 청년들이 너무 많습니다. 주거는 투자가 아니라 사람의 권리예요.',
+          author:u[1], tags:['부동산','정책'], time:'3시간 전',
+          votes:{agree:97, disagree:24, understand:41}, comments:[
+            { author:u[3], text:'미국에서 봐도 한국 청년 주거 문제는 심각해요.', acks:7 }
+          ]},
+        { id:4, zone:'자유광장', zoneKey:'plaza', genKey:null, leanKey:null, title:'외교는 보수냐 진보냐가 아니라 국익입니다',
+          content:'한미·한중·한일 관계는 정파를 떠나 국익 중심으로 가야 합니다. 진영논리에 빠지지 맙시다.',
+          author:u[0], tags:['외교','중립'], time:'4시간 전',
+          votes:{agree:156, disagree:22, understand:88}, comments:[]},
+        { id:5, zone:'보수마당', zoneKey:'conservative', genKey:'middle', leanKey:'right', title:'자녀 세대를 위해 우리가 해야 할 일',
+          content:'40대 가장으로서 청년 세대의 어려움을 외면하면 안 됩니다. 보수도 사회적 책임이 있어요.',
+          author:u[0], tags:['세대대립','정책'], time:'5시간 전',
+          votes:{agree:73, disagree:11, understand:58}, comments:[]},
+        { id:6, zone:'진보마다', zoneKey:'progressive', genKey:'middle', leanKey:'left', title:'복지 확대 vs 재정 건전성 — 어떻게 균형?',
+          content:'무조건 늘리자도, 무조건 줄이자도 답이 아니라고 봅니다. 진보 진영 안에서도 솔직한 토론이 필요해요.',
+          author:u[0], tags:['경제','정책'], time:'6시간 전',
+          votes:{agree:64, disagree:29, understand:51}, comments:[]},
+        { id:7, zone:'자유광장', zoneKey:'plaza', genKey:null, leanKey:null, title:'AI 시대, 정치는 무엇을 해야 하나?',
+          content:'기술 변화가 빠른데 정치가 따라가지 못합니다. 일자리·교육·복지 모두 새로 짜야 해요.',
+          author:u[1], tags:['정책','경제'], time:'7시간 전',
+          votes:{agree:112, disagree:14, understand:73}, comments:[]},
+        { id:8, zone:'진보마다', zoneKey:'progressive', genKey:'senior', leanKey:'left', title:'60대 진보의 시선 — 우리도 변화를 원합니다',
+          content:'나이가 들었다고 보수만 지지하지 않습니다. 더 평등한 사회를 바라는 시니어도 많아요.',
+          author:u[2], tags:['세대대립'], time:'8시간 전',
+          votes:{agree:58, disagree:7, understand:44}, comments:[]},
+        { id:9, zone:'정치싸움판', zoneKey:'battle', genKey:null, leanKey:null, title:'⚔️ 20대 vs 60대 — 연금 누가 더 손해?',
+          content:'청년: "우리는 더 내고 덜 받는다!" / 시니어: "우리는 평생 기여했다!" — 여러분의 입장은?',
+          author:u[0], tags:['연금','세대대립','선거'], time:'30분 전',
+          votes:{agree:42, disagree:38, understand:21}, comments:[]},
+        { id:10, zone:'자유광장', zoneKey:'plaza', genKey:null, leanKey:null, title:'외국에서 본 한국 정치 — 신기한 점',
+          content:'미국에서 한국 정치 뉴스를 보면 양극화가 심해 보여요. 하지만 그만큼 시민이 깨어있다는 뜻이기도 합니다.',
+          author:u[3], tags:['외교','중립'], time:'10시간 전',
+          votes:{agree:88, disagree:9, understand:67}, comments:[]}
+      ];
+
+      // 작성자 국적 정보 보강
+      this.posts.forEach(p => {
+        p.author.country_flag = this.flagMap[p.author.country_code] || '🇰🇷';
+        p.comments.forEach(c => { c.author.country_flag = this.flagMap[c.author.country_code] || '🇰🇷'; });
+      });
+    },
+
+    // ============================================================
+    // 필터링
+    // ============================================================
+    filteredPosts(zoneKey, genKey) {
+      let list = this.posts.filter(p => p.zoneKey === zoneKey);
+      if (genKey) list = list.filter(p => p.genKey === genKey);
+      if (zoneKey === 'plaza' && this.activeTags.length > 0) {
+        list = list.filter(p => p.tags.some(t => this.activeTags.includes(t)));
+      }
+      return list;
+    },
+
+    get hotTopics() {
+      return this.posts
+        .filter(p => p.zoneKey === 'plaza')
+        .slice()
+        .sort((a,b) => (b.votes.agree + b.votes.understand) - (a.votes.agree + a.votes.understand))
+        .slice(0, 3);
+    },
+
+    get topRanked() {
+      return this.posts.slice().sort((a,b) => b.comments.length + b.votes.agree - (a.comments.length + a.votes.agree)).slice(0, 5);
+    },
+
+    toggleTag(t) {
+      const i = this.activeTags.indexOf(t);
+      if (i >= 0) this.activeTags.splice(i, 1);
+      else this.activeTags.push(t);
+    },
+
+    // ============================================================
+    // 게시글 상세
+    // ============================================================
+    openPost(p) {
+      this.postModal.post = p;
+      this.postModal.newComment = '';
+      this.postModal.open = true;
+    },
+
+    vote(p, kind) {
+      p.votes[kind]++;
+      if (kind === 'understand') {
+        // 작성자 중개인 점수도 +1
+        p.author.score = (p.author.score || 0) + 1;
+      }
+    },
+
+    addComment() {
+      if (!this.profile.loggedIn) { alert('댓글을 남기려면 로그인이 필요해요.'); this.openLogin = true; return; }
+      const text = (this.postModal.newComment || '').trim();
+      if (!text) return;
+      this.postModal.post.comments.push({
+        author: {
+          nickname: this.profile.nickname,
+          avatar: this.profile.avatar,
+          leaning: this.profile.leaning,
+          generation: this.profile.generation,
+          country_code: this.profile.country_code,
+          country_flag: this.profile.country_flag,
+          score: this.profile.score
+        },
+        text, acks: 0
+      });
+      this.postModal.newComment = '';
+    },
+
+    acknowledge(c) {
+      c.acks++;
+      // 댓글 작성자의 중개인 점수도 +1
+      if (c.author && typeof c.author.score === 'number') c.author.score++;
+      // 본인 점수도 (이해 표시한 사람도 +1)
+      this.profile.score++;
+      this.saveProfile();
+    },
+
+    // ============================================================
+    // 게시글 카드 HTML (재사용)
+    // ============================================================
+    postCardHtml(p) {
+      const leanBadge = this.leaningLabel(p.author.leaning);
+      const leanCls = this.badgeClassRaw(p.author.leaning);
+      const flag = p.author.country_flag || '🇰🇷';
+      const cnWarn = p.author.country_code === 'CN' ? `<span class="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded">외국 IP 확인</span>` : '';
+      const tags = (p.tags||[]).map(t => `<span class="text-xs px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded-full">#${t}</span>`).join(' ');
+      return `
+        <div class="flex items-start justify-between gap-3 mb-2">
+          <div class="flex items-center gap-2 text-xs text-zinc-500 flex-wrap">
+            <span class="px-2 py-0.5 bg-brand-pale text-brand rounded-full font-bold">${p.zone}</span>
+            <span>${p.time}</span>
+          </div>
+        </div>
+        <h3 class="text-xl font-black leading-snug mb-2">${this.escapeHtml(p.title)}</h3>
+        <p class="text-base text-zinc-600 dark:text-zinc-300 line-clamp-2 mb-3">${this.escapeHtml(p.content)}</p>
+        <div class="flex flex-wrap items-center gap-2 mb-3">${tags}</div>
+        <div class="flex items-center justify-between flex-wrap gap-2 text-sm">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-2xl">${p.author.avatar}</span>
+            <span class="font-bold">${this.escapeHtml(p.author.nickname)}</span>
+            <span class="text-xs px-2 py-0.5 rounded-full" style="${leanCls}">${leanBadge}</span>
+            <span class="text-xs">${flag}</span>
+            ${cnWarn}
+          </div>
+          <div class="text-zinc-500 text-xs">💬 ${p.comments.length} · 👍 ${p.votes.agree} · 🤝 ${p.votes.understand}</div>
+        </div>
+      `;
+    },
+
+    escapeHtml(s) {
+      return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    },
+
+    // ============================================================
+    // 배지/라벨 유틸
+    // ============================================================
+    leaningLabel(k) { return (this.leanings.find(l => l.key === k) || {label:'중립'}).label; },
+    leaningIcon(k)  { return (this.leanings.find(l => l.key === k) || {icon:'⚪'}).icon; },
+    badgeClass(k) {
+      const m = { ext_right:'badge-ext-right', right:'badge-right', center:'badge-center', left:'badge-left', ext_left:'badge-ext-left' };
+      return m[k] || 'badge-center';
+    },
+    badgeClassRaw(k) {
+      const l = this.leanings.find(x => x.key === k) || this.leanings[2];
+      return `background:${l.bg};color:${l.fg};border:1px solid ${l.border}`;
+    },
+    generationLabel(k) { return (this.generations.find(g => g.key === k) || {label:'청년층'}).label; },
+
+    // ============================================================
+    // 로그인 / 회원가입
+    // ============================================================
+    socialLogin(provider) {
+      // 데모용: 즉시 2단계로 진행
+      this.signupStep = 2;
+      // 가짜 나이 정보 → 무작위 세대
+      const gens = ['youth','middle','senior'];
+      this.signupData.generation = gens[Math.floor(Math.random()*gens.length)];
+      this.signupData.provider = provider;
+    },
+
+    completeSignup() {
+      if (!this.signupData.leaning || !this.signupData.generation) return;
+      this.profile.loggedIn = true;
+      this.profile.nickname = '광장친구' + Math.floor(Math.random()*9000+1000);
+      this.profile.leaning = this.signupData.leaning;
+      this.profile.generation = this.signupData.generation;
+      this.profile.country_code = this.detectedCountry.code;
+      this.profile.country_name = this.detectedCountry.name;
+      this.profile.country_flag = this.detectedCountry.flag;
+      this.profile.avatar = this.avatars[Math.floor(Math.random()*this.avatars.length)];
+      this.profile.joined = new Date().toISOString().slice(0,10).replace(/-/g,'.');
+      this.profile.score = 0;
+      this.subGen = this.profile.generation;
+      this.saveProfile();
+      this.openLogin = false;
+      this.signupStep = 1;
+    },
+
+    logout() {
+      if (!confirm('정말 로그아웃하시겠어요?')) return;
+      this.profile.loggedIn = false;
+      this.profile.nickname = '게스트';
+      this.profile.score = 0;
+      localStorage.removeItem('jg_profile');
+      this.goto('home');
+    },
+
+    saveProfile() {
+      localStorage.setItem('jg_profile', JSON.stringify(this.profile));
+    },
+
+    loadProfile() {
+      try {
+        const raw = localStorage.getItem('jg_profile');
+        if (raw) {
+          const p = JSON.parse(raw);
+          Object.assign(this.profile, p);
+          this.subGen = p.generation || 'youth';
+        }
+        if (localStorage.getItem('jg_dark') === '1') this.darkMode = true;
+      } catch (e) { console.warn(e); }
+    },
+
+    setCountry(c) {
+      this.profile.country_code = c.code;
+      this.profile.country_name = c.name;
+      this.profile.country_flag = c.flag;
+    },
+
+    // ============================================================
+    // 글쓰기
+    // ============================================================
+    newPost(zoneKey) {
+      if (!this.profile.loggedIn) { this.openLogin = true; return; }
+      if (zoneKey === 'battle' && !this.battleOpen) {
+        alert('정치싸움판은 오전 9–12시, 오후 6–9시(KST)에만 열립니다.');
+        return;
+      }
+      if ((zoneKey === 'conservative' || zoneKey === 'progressive') && this.subGen !== this.profile.generation) {
+        alert('본인 세대 마당에서만 글을 작성할 수 있어요.');
+        return;
+      }
+      const labels = { plaza:'자유광장', conservative:'보수마당', progressive:'진보마다', battle:'정치싸움판' };
+      this.writer = { open:true, title:'', content:'', tags:[], zone: zoneKey, zoneLabel: labels[zoneKey] };
+    },
+
+    toggleWriterTag(t) {
+      const i = this.writer.tags.indexOf(t);
+      if (i >= 0) this.writer.tags.splice(i,1);
+      else if (this.writer.tags.length < 5) this.writer.tags.push(t);
+    },
+
+    submitPost() {
+      const w = this.writer;
+      if (!w.title.trim() || !w.content.trim()) { alert('제목과 내용을 입력해주세요.'); return; }
+      const zoneNames = { plaza:'자유광장', conservative:'보수마당', progressive:'진보마다', battle:'정치싸움판' };
+      const post = {
+        id: this.posts.length + 1,
+        zone: zoneNames[w.zone],
+        zoneKey: w.zone,
+        genKey: (w.zone === 'conservative' || w.zone === 'progressive') ? this.profile.generation : null,
+        leanKey: w.zone === 'conservative' ? 'right' : w.zone === 'progressive' ? 'left' : null,
+        title: w.title.trim(),
+        content: w.content.trim(),
+        author: {
+          nickname: this.profile.nickname,
+          avatar: this.profile.avatar,
+          leaning: this.profile.leaning,
+          generation: this.profile.generation,
+          country_code: this.profile.country_code,
+          country_flag: this.profile.country_flag,
+          score: this.profile.score
+        },
+        tags: w.tags.slice(),
+        time: '방금 전',
+        votes: { agree:0, disagree:0, understand:0 },
+        comments: []
+      };
+      this.posts.unshift(post);
+      this.writer.open = false;
+    },
+
+    // ============================================================
+    // 정치싸움판 투표
+    // ============================================================
+    battleVote(kind) {
+      if (!this.battleOpen) { alert('싸움판은 지금 닫혀있어요.'); return; }
+      this.battle.votes[kind]++;
+    },
+    battlePredict() {
+      if (!this.battleOpen) { alert('싸움판은 지금 닫혀있어요.'); return; }
+      const side = confirm('보수 진영 승리에 베팅하시겠어요?\n(취소 시 진보 진영)') ? 'predict_conservative' : 'predict_progressive';
+      this.battle.votes[side]++;
+      alert('예측이 등록되었습니다!');
+    },
+
+    // ============================================================
+    // 첫방문 가이드
+    // ============================================================
+    closeGuide() {
+      this.guide.open = false;
+      localStorage.setItem('jg_guide_shown', '1');
+    },
+
+    // ============================================================
+    // 개발자 모드
+    // ============================================================
+    simulateChinaIP() {
+      this.detectedCountry = { code:'CN', name:'중국', flag:'🇨🇳' };
+      this.profile.country_code = 'CN';
+      this.profile.country_name = '중국';
+      this.profile.country_flag = '🇨🇳';
+      this.saveProfile();
+      alert('중국 IP 시뮬레이션 활성화 — 상단 배너와 외국 IP 뱃지를 확인하세요.');
+    },
+    resetDemo() {
+      if (!confirm('데모를 초기화할까요? (프로필·가이드 기록 삭제)')) return;
+      localStorage.removeItem('jg_profile');
+      localStorage.removeItem('jg_guide_shown');
+      localStorage.removeItem('jg_dark');
+      location.reload();
+    }
+  };
+}
+</script>
+
+<!--
+  ============================================================
+  ※ 이 파일을 WordPress 테마로 변환하고 싶다면?
+     1) index.html → index.php 로 옮긴 뒤 <body> 안 컨텐츠를 page.php / single.php 로 분리,
+     2) Tailwind CDN 대신 functions.php에서 wp_enqueue_style 로 등록 (또는 빌드 CSS 적용),
+     3) Alpine.js 데이터의 posts 배열을 WP_Query 로, 댓글을 wp_list_comments 로,
+     4) 회원가입 단계의 정치성향·국적·연령대는 user_meta 로 저장,
+     5) 정치싸움판 시간 잠금은 PHP에서 (new DateTimeZone('Asia/Seoul')) 으로 서버 측 검증 추가하면 끝!
+  ============================================================
+-->
+</body>
+</html>
