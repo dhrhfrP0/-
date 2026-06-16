@@ -1,0 +1,12 @@
+{
+  "name": "text-to-3d",
+  "version": "1.0.0",
+  "description": "프롬프트로 3D 모델을 절차적으로 생성하는 의존성 없는 웹앱 (자체 WebGL 렌더러 포함)",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test/generate.test.js"
+  },
+  "keywords": ["3d", "procedural", "text-to-3d", "webgl", "generator"],
+  "license": "MIT"
+}

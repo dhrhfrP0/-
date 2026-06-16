@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Text → 3D · 나만의 3D 모델 생성기</title>
+  <link rel="stylesheet" href="styles/style.css" />
+</head>
+<body>
+  <aside class="panel">
+    <h1>Text → 3D <span>나만의 3D 모델 생성기</span></h1>
+    <p class="sub">문장을 입력하면 절차적으로 3D 모델을 만들어 줍니다. 한국어·영어 모두 인식해요.</p>
+
+    <label class="field">
+      <span>프롬프트</span>
+      <textarea id="prompt" rows="3" placeholder="예: 파란 로봇 3개, 눈 덮인 산, 황금 보석..."></textarea>
+    </label>
+
+    <div class="row">
+      <button id="generate" class="primary">✨ 생성하기 <kbd>Ctrl+Enter</kbd></button>
+    </div>
+
+    <div class="row seedrow">
+      <label class="field grow">
+        <span>시드(seed)</span>
+        <input id="seed" type="text" inputmode="numeric" placeholder="자동" />
+      </label>
+      <button id="randomize" title="무작위 변형">🎲 변형</button>
+    </div>
+
+    <div class="row toggles">
+      <label><input type="checkbox" id="rotate" checked /> 자동 회전</label>
+      <label><input type="checkbox" id="wire" /> 와이어프레임</label>
+    </div>
+
+    <div class="chips">
+      <button class="chip" data-prompt="키 큰 소나무 나무 3그루">🌲 나무 숲</button>
+      <button class="chip" data-prompt="빨간 자동차">🚗 자동차</button>
+      <button class="chip" data-prompt="파란 로봇">🤖 로봇</button>
+      <button class="chip" data-prompt="눈사람">⛄ 눈사람</button>
+      <button class="chip" data-prompt="황금 보석">💎 보석</button>
+      <button class="chip" data-prompt="작은 버섯 다섯개">🍄 버섯</button>
+      <button class="chip" data-prompt="로켓">🚀 로켓</button>
+      <button class="chip" data-prompt="성 castle">🏰 성</button>
+      <button class="chip" data-prompt="분홍 도넛">🍩 도넛</button>
+      <button class="chip" data-prompt="눈 덮인 산">⛰️ 산</button>
+      <button class="chip" data-prompt="고양이">🐱 고양이</button>
+      <button class="chip" data-prompt="둥근 꽃">🌸 꽃</button>
+    </div>
+
+    <div class="exports">
+      <span>내보내기</span>
+      <div class="row">
+        <button id="exportObj">.OBJ</button>
+        <button id="exportStl">.STL</button>
+        <button id="exportGltf">.glTF</button>
+      </div>
+    </div>
+
+    <div id="stats" class="stats"></div>
+
+    <p class="hint">드래그: 회전 · 휠: 확대/축소 · Shift+드래그(또는 우클릭): 이동</p>
+  </aside>
+
+  <main class="stage">
+    <canvas id="view"></canvas>
+  </main>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
