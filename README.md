@@ -49,8 +49,14 @@
 
 정적 파일 세 개가 전부라 빌드가 필요 없습니다.
 
-**GitHub Pages** — 저장소 **Settings → Pages → Source: Deploy from a branch** 에서
-브랜치와 `/ (root)` 를 고르면 몇 분 뒤 `https://<계정>.github.io/<저장소>/` 에서 열립니다.
+**GitHub Pages**
+
+1. 저장소가 비공개면 먼저 공개로 바꿉니다.
+   무료 계정은 비공개 저장소에서 Pages를 쓸 수 없습니다 (Settings → Danger Zone → Change visibility).
+2. **Settings → Pages → Source: `Deploy from a branch`** 에서 `main` 과 `/ (root)` 를 고르고 Save.
+3. 2~3분 뒤 `https://<계정>.github.io/<저장소>/` 에서 열립니다.
+
+저장소에 있는 빈 `.nojekyll` 파일은 Pages가 Jekyll로 한 번 더 가공하지 않게 막아 줍니다.
 
 **파일 하나로 묶기** — 메일로 보내거나 USB에 담아 인터넷 없이 쓰려면:
 
