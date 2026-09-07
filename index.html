@@ -9,101 +9,116 @@
 </head>
 <body>
 
-<!-- ─────────── 1. 시작 화면 ─────────── -->
-<section class="screen" id="screen-home">
-  <div class="home-inner">
-    <p class="home-eyebrow">교실 · 강당 · 사무실 조명 안내판</p>
-    <h1 class="home-title">어느 스위치가<br>어느 등을 켤까?</h1>
-    <p class="home-sub">하나씩 다 눌러보지 않아도 되도록,<br>스위치와 등을 이어주는 안내판을 만들어 인쇄하세요.</p>
-    <button class="hero-btn" id="btn-start">양식 만들기</button>
-    <button class="ghost-btn" id="btn-load-file">저장해 둔 양식 불러오기</button>
-    <input type="file" id="file-input" accept="application/json" hidden>
+<div class="shell">
+
+  <!-- 광고 자리 (왼쪽) — AdSense 코드를 이 안에 넣으세요 -->
+  <aside class="ad-rail" id="ad-left" aria-hidden="true"></aside>
+
+  <div class="app">
+
+    <!-- ─────────── 1. 시작 화면 ─────────── -->
+    <section class="screen" id="screen-home">
+      <div class="home-inner">
+        <p class="home-eyebrow">교실 · 강당 · 사무실 조명 안내판</p>
+        <h1 class="home-title">어느 스위치가<br>어느 등을 켤까?</h1>
+        <p class="home-sub">하나씩 다 눌러보지 않아도 되도록,<br>스위치와 등을 이어주는 안내판을 만들어 인쇄하세요.</p>
+        <button class="hero-btn" id="btn-start">양식 만들기</button>
+        <button class="ghost-btn" id="btn-load-file">저장해 둔 양식 불러오기</button>
+        <input type="file" id="file-input" accept="application/json" hidden>
+      </div>
+    </section>
+
+    <!-- ─────────── 2. 분기 화면 ─────────── -->
+    <section class="screen" id="screen-choose">
+      <div class="choose-inner">
+        <h2 class="choose-title">방 평면도가 있으신가요?</h2>
+        <p class="choose-sub">평면도(도면) 이미지가 있으면 그 위에 등을 얹을 수 있고,<br>없어도 빈 방을 골라 바로 만들 수 있습니다.</p>
+        <div class="choices">
+          <button class="choice" data-blueprint="yes">
+            <span class="choice-ico" aria-hidden="true">
+              <svg viewBox="0 0 64 48"><rect x="2" y="2" width="60" height="44" rx="3"/><path d="M2 18h26M28 2v44M40 18h22M40 32h22"/></svg>
+            </span>
+            <strong>방 평면도가 있습니다</strong>
+            <small>이미지 파일을 배경으로 깔고 그 위에 등을 배치합니다</small>
+          </button>
+          <button class="choice" data-blueprint="no">
+            <span class="choice-ico" aria-hidden="true">
+              <svg viewBox="0 0 64 48"><rect x="2" y="2" width="60" height="44" rx="3"/><rect class="f" x="12" y="12" width="16" height="6" rx="3"/><rect class="f" x="36" y="12" width="16" height="6" rx="3"/><rect class="f" x="12" y="30" width="16" height="6" rx="3"/><rect class="f" x="36" y="30" width="16" height="6" rx="3"/></svg>
+            </span>
+            <strong>방 평면도가 없습니다</strong>
+            <small>방 모양과 등 개수만 고르면 바로 시작합니다</small>
+          </button>
+        </div>
+        <button class="back-btn" data-goto="home">← 처음으로</button>
+      </div>
+    </section>
+
+    <!-- ─────────── 3. 편집 화면 ─────────── -->
+    <section class="screen" id="screen-editor">
+
+      <header class="topbar">
+        <button class="tb-icon" id="btn-home" title="처음 화면으로">
+          <svg viewBox="0 0 24 24"><path d="M4 12h14M10 6l-6 6 6 6"/></svg>
+        </button>
+        <input class="tb-title" id="doc-title" type="text" placeholder="예) 3학년 2반 교실" maxlength="40">
+
+        <button class="tb-btn" id="btn-template">＋ 사전 양식</button>
+
+        <div class="tb-group">
+          <span class="tb-label">방 모양</span>
+          <span id="ratio-group" role="group" aria-label="방 모양 비율"></span>
+        </div>
+
+        <div class="tb-spacer"></div>
+
+        <button class="tb-btn accent" id="btn-add-switch">스위치 추가</button>
+        <button class="tb-btn" id="btn-save-file" title="다음에 다시 고칠 수 있게 파일로 저장">저장</button>
+        <button class="tb-btn primary" id="btn-print">인쇄 / PDF</button>
+      </header>
+
+      <div class="workspace">
+        <div class="stage" id="stage">
+          <div class="hint" id="hint" hidden></div>
+          <div class="paper" id="paper"><svg id="plan" xmlns="http://www.w3.org/2000/svg"></svg></div>
+        </div>
+
+        <aside class="panel" id="panel">
+          <div class="panel-scroll" id="panel-scroll"></div>
+        </aside>
+      </div>
+
+      <div class="dock" id="dock">
+        <button class="dock-btn" data-tool="select" title="선택 · 이동 (V)">
+          <svg viewBox="0 0 24 24"><path d="M5 3l14 8-6 1.6L10.5 19 5 3z"/></svg><span>선택</span>
+        </button>
+        <button class="dock-btn" data-tool="light" title="등 추가 (L)">
+          <svg viewBox="0 0 24 24"><rect x="3" y="9" width="18" height="6" rx="3"/></svg><span>등 추가</span>
+        </button>
+        <button class="dock-btn" data-tool="erase" title="지우개 (E)">
+          <svg viewBox="0 0 24 24"><path d="M4 16l7-7 8 8-4 4H8l-4-5z"/><path d="M9 21h11"/></svg><span>지우개</span>
+        </button>
+        <span class="dock-div"></span>
+        <div class="dock-shapes" id="dock-shapes">
+          <button class="shape-btn" data-shape="bar" title="형광등(막대)"><i class="sh-bar"></i></button>
+          <button class="shape-btn" data-shape="square" title="사각 등"><i class="sh-square"></i></button>
+          <button class="shape-btn" data-shape="circle" title="원형 등"><i class="sh-circle"></i></button>
+        </div>
+        <span class="dock-div"></span>
+        <button class="dock-btn" id="btn-grid" title="등을 격자로 자동 배치">
+          <svg viewBox="0 0 24 24"><path d="M3 3h18v18H3zM9 3v18M15 3v18M3 9h18M3 15h18"/></svg><span>격자 배치</span>
+        </button>
+        <button class="dock-btn" id="btn-undo" title="되돌리기 (Ctrl+Z)">
+          <svg viewBox="0 0 24 24"><path d="M9 14l-5-4 5-4"/><path d="M4 10h9a6 6 0 010 12H9"/></svg><span>되돌리기</span>
+        </button>
+      </div>
+    </section>
+
   </div>
-</section>
 
-<!-- ─────────── 2. 분기 화면 ─────────── -->
-<section class="screen" id="screen-choose">
-  <div class="choose-inner">
-    <h2 class="choose-title">방 평면도가 있으신가요?</h2>
-    <p class="choose-sub">평면도(도면) 이미지가 있으면 그 위에 등을 얹을 수 있고,<br>없어도 빈 방을 골라 바로 만들 수 있습니다.</p>
-    <div class="choices">
-      <button class="choice" data-blueprint="yes">
-        <span class="choice-ico" aria-hidden="true">
-          <svg viewBox="0 0 64 48"><rect x="2" y="2" width="60" height="44" rx="3"/><path d="M2 18h26M28 2v44M40 18h22M40 32h22"/></svg>
-        </span>
-        <strong>방 평면도가 있습니다</strong>
-        <small>이미지 파일을 배경으로 깔고 그 위에 등을 배치합니다</small>
-      </button>
-      <button class="choice" data-blueprint="no">
-        <span class="choice-ico" aria-hidden="true">
-          <svg viewBox="0 0 64 48"><rect x="2" y="2" width="60" height="44" rx="3"/><rect class="f" x="12" y="12" width="16" height="6" rx="3"/><rect class="f" x="36" y="12" width="16" height="6" rx="3"/><rect class="f" x="12" y="30" width="16" height="6" rx="3"/><rect class="f" x="36" y="30" width="16" height="6" rx="3"/></svg>
-        </span>
-        <strong>방 평면도가 없습니다</strong>
-        <small>방 모양과 등 개수만 고르면 바로 시작합니다</small>
-      </button>
-    </div>
-    <button class="back-btn" data-goto="home">← 처음으로</button>
-  </div>
-</section>
+  <!-- 광고 자리 (오른쪽) — AdSense 코드를 이 안에 넣으세요 -->
+  <aside class="ad-rail" id="ad-right" aria-hidden="true"></aside>
 
-<!-- ─────────── 3. 에디터 ─────────── -->
-<section class="screen" id="screen-editor">
-
-  <header class="topbar">
-    <button class="tb-icon" data-goto="home" title="처음으로">
-      <svg viewBox="0 0 24 24"><path d="M4 12h14M10 6l-6 6 6 6"/></svg>
-    </button>
-    <input class="tb-title" id="doc-title" type="text" placeholder="예) 3학년 2반 교실" maxlength="40">
-
-    <div class="tb-group" id="grp-template">
-      <button class="tb-btn" id="btn-template">＋ 사전 양식</button>
-    </div>
-
-    <div class="tb-group" id="ratio-group" role="group" aria-label="방 모양 비율"></div>
-
-    <div class="tb-spacer"></div>
-
-    <button class="tb-btn accent" id="btn-add-switch">스위치 추가</button>
-    <button class="tb-btn" id="btn-save-file" title="다음에 다시 고칠 수 있게 파일로 저장">저장</button>
-    <button class="tb-btn primary" id="btn-print">인쇄 / PDF</button>
-  </header>
-
-  <div class="workspace">
-    <div class="stage" id="stage">
-      <div class="hint" id="hint" hidden></div>
-      <div class="paper" id="paper"><svg id="plan" xmlns="http://www.w3.org/2000/svg"></svg></div>
-    </div>
-
-    <aside class="panel" id="panel">
-      <div class="panel-scroll" id="panel-scroll"></div>
-    </aside>
-  </div>
-
-  <div class="dock" id="dock">
-    <button class="dock-btn" data-tool="select" title="선택 · 이동">
-      <svg viewBox="0 0 24 24"><path d="M5 3l14 8-6 1.6L10.5 19 5 3z"/></svg><span>선택</span>
-    </button>
-    <button class="dock-btn" data-tool="light" title="등 추가">
-      <svg viewBox="0 0 24 24"><rect x="3" y="9" width="18" height="6" rx="3"/></svg><span>등 추가</span>
-    </button>
-    <button class="dock-btn" data-tool="erase" title="지우개">
-      <svg viewBox="0 0 24 24"><path d="M4 16l7-7 8 8-4 4H8l-4-5z"/><path d="M9 21h11"/></svg><span>지우개</span>
-    </button>
-    <span class="dock-div"></span>
-    <div class="dock-shapes" id="dock-shapes">
-      <button class="shape-btn" data-shape="bar" title="형광등(막대)"><i class="sh-bar"></i></button>
-      <button class="shape-btn" data-shape="square" title="사각 등"><i class="sh-square"></i></button>
-      <button class="shape-btn" data-shape="circle" title="원형 등"><i class="sh-circle"></i></button>
-    </div>
-    <span class="dock-div"></span>
-    <button class="dock-btn" id="btn-grid" title="등을 격자로 자동 배치">
-      <svg viewBox="0 0 24 24"><path d="M3 3h18v18H3zM9 3v18M15 3v18M3 9h18M3 15h18"/></svg><span>격자 배치</span>
-    </button>
-    <button class="dock-btn" id="btn-undo" title="되돌리기 (Ctrl+Z)">
-      <svg viewBox="0 0 24 24"><path d="M9 14l-5-4 5-4"/><path d="M4 10h9a6 6 0 010 12H9"/></svg><span>되돌리기</span>
-    </button>
-  </div>
-</section>
+</div>
 
 <!-- ─────────── 모달 ─────────── -->
 <div class="modal-back" id="modal-back" hidden>
