@@ -41,12 +41,28 @@
 
 단축키: `V` 선택 · `L` 등 추가 · `E` 지우개 · `Delete` 선택한 등 삭제 · `Esc` 선택 해제
 
+## 올리기
+
+정적 파일 세 개가 전부라 빌드가 필요 없습니다.
+
+**GitHub Pages** — 저장소 **Settings → Pages → Source: Deploy from a branch** 에서
+브랜치와 `/ (root)` 를 고르면 몇 분 뒤 `https://<계정>.github.io/<저장소>/` 에서 열립니다.
+
+**파일 하나로 묶기** — 메일로 보내거나 USB에 담아 인터넷 없이 쓰려면:
+
+```
+python3 build-single.py dist/index.html
+```
+
+`dist/index.html` 하나만 있으면 어디서든 그대로 열립니다.
+
 ## 파일
 
 ```
-index.html   화면 구조
-style.css    화면 + 인쇄 스타일
-app.js       상태, 도면 SVG 그리기, 조작, 인쇄 시트 생성
+index.html        화면 구조
+style.css         화면 + 인쇄 스타일
+app.js            상태, 도면 SVG 그리기, 조작, 인쇄 시트 생성
+build-single.py   위 셋을 파일 하나로 묶는 스크립트
 ```
 
 외부 라이브러리를 쓰지 않습니다. 도면은 SVG로 그려 인쇄해도 깨지지 않고,

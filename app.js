@@ -659,6 +659,14 @@ function buildPrintSheet() {
     '</div>';
 }
 
+const EMBEDDED = (function () { try { return window.top !== window.self; } catch (e) { return true; } })();
+function toast(msg) {
+  const el = document.createElement('div');
+  el.className = 'toast'; el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 400); }, 6000);
+}
+
 /* ============================================================
    파일 저장 / 불러오기
    ============================================================ */
@@ -669,6 +677,7 @@ function saveFile() {
   a.href = URL.createObjectURL(blob); a.download = name;
   document.body.appendChild(a); a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  if (EMBEDDED) toast('내려받기가 막힌 화면입니다. 파일이 저장되지 않았다면 이 페이지를 새 탭에서 열고 다시 눌러주세요.');
 }
 function loadFile(file) {
   const rd = new FileReader();
@@ -715,7 +724,13 @@ function boot() {
   $('#btn-template').onclick = openTemplateModal;
   $('#btn-add-switch').onclick = openSwitchModal;
   $('#btn-save-file').onclick = saveFile;
-  $('#btn-print').onclick = () => { buildPrintSheet(); setTimeout(() => window.print(), 60); };
+  $('#btn-print').onclick = () => {
+    buildPrintSheet();
+    setTimeout(() => {
+      try { window.print(); } catch (e) {}
+      if (EMBEDDED) toast('인쇄 창이 뜨지 않으면, 이 페이지를 새 탭에서 연 뒤 다시 눌러주세요.');
+    }, 60);
+  };
   $('#btn-grid').onclick = openGridModal;
   $('#btn-undo').onclick = undo;
 

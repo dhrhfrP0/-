@@ -176,6 +176,13 @@ input{font-family:inherit}
 .note{padding:11px 13px;font-size:12px;line-height:1.6;color:#7c5b12;
   background:#fef8e7;border:1px solid #f5e3b3;border-radius:9px}
 
+/* 알림 */
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:60;
+  max-width:min(520px,92vw);padding:13px 18px;font-size:13px;line-height:1.6;font-weight:600;
+  color:#fff;background:#14161af2;border-radius:12px;box-shadow:var(--shadow);
+  transition:opacity .35s,transform .35s}
+.toast.out{opacity:0;transform:translate(-50%,8px)}
+
 /* ============ 인쇄 ============ */
 #print-root{display:none}
 @media print{
