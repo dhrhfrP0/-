@@ -14,9 +14,8 @@ const uid = () => Math.random().toString(36).slice(2, 9);
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
 /* ── 상수 ───────────────────────────────────────────────── */
-/* 작업 캔버스. 파워포인트의 슬라이드처럼 크기가 고정돼 있고,
-   방은 그 위에 놓인 도형이라 자유롭게 옮기고 늘릴 수 있다.
-   인쇄할 때는 내용이 있는 만큼만 잘라내므로 빈 곳이 남지 않는다. */
+/* 캔버스가 곧 종이다. 가로를 1000으로 고정하고 세로는 고른 비율에서 나온다.
+   방은 그 위에 놓인 도형이라 파워포인트처럼 옮기고 늘릴 수 있다. */
 const VB_W = 1000;
 const STORE = 'switchdeung.doc.v2';
 const FONT  = "'Apple SD Gothic Neo','Malgun Gothic',sans-serif";
@@ -27,9 +26,10 @@ const COLORS = [
   '#0d9488', '#e93d82', '#a16207', '#3e63dd', '#65a30d'
 ];
 const SHAPES = { bar: { w: 152, h: 34 }, square: { w: 74, h: 74 }, circle: { w: 74, h: 74 } };
+/* 긴 쪽을 가로로 적어 둔다. 방향은 가로/세로 버튼이 정한다. */
 const RATIOS = [
-  { id: '16:9', w: 16, h: 9 }, { id: '16:10', w: 16, h: 10 }, { id: '4:3', w: 4, h: 3 },
-  { id: 'A4 가로', w: 297, h: 210 }, { id: 'A4 세로', w: 210, h: 297 }
+  { id: '16:9', w: 16, h: 9 }, { id: '16:10', w: 16, h: 10 },
+  { id: '4:3', w: 4, h: 3 },   { id: 'A4', w: 297, h: 210 }
 ];
 /* 아래쪽은 벽 이름표와 스위치판이 앉을 자리로 비워 둔다 */
 const DEFAULT_ROOM = { x: 0.07, y: 0.07, w: 0.86, h: 0.70 };
@@ -137,7 +137,8 @@ function setPaper(aw, ah, id) {
   const cx = (r.x + r.w / 2) * VB_W, cy = (r.y + r.h / 2) * oldH;
   const swY = doc.switches.map(sw => sw.ny * oldH);   /* 스위치판도 제자리에 둔다 */
   /* 고른 값이 정해진 비율과 같으면 그 이름을 그대로 쓴다 */
-  const hit = RATIOS.filter(r => Math.abs(aw / ah - r.w / r.h) / (r.w / r.h) < 0.015)[0];
+  const base = Math.max(aw, ah) / Math.min(aw, ah);
+  const hit = RATIOS.filter(r => Math.abs(base - r.w / r.h) / (r.w / r.h) < 0.015)[0];
   doc.paper = { id: id || (hit ? hit.id : 'custom'), w: aw, h: ah };
   const newH = paperH();
   const w = Math.min(pxW, VB_W * 0.98) / VB_W, h = Math.min(pxH, newH * 0.98) / newH;
@@ -153,6 +154,12 @@ function setPaper(aw, ah, id) {
 function fitRoomToPaper() { doc.room = Object.assign({}, DEFAULT_ROOM); }
 function roomAspect() { const rb = roomBox(); return rb.w / rb.h; }
 function paperAspect() { return VB_W / paperH(); }
+function isPortrait() { return doc.paper.h > doc.paper.w; }
+/* 방향을 뺀 순수 비율 — 버튼 강조에 쓴다 */
+function paperBaseRatio() {
+  const a = doc.paper.w, b = doc.paper.h;
+  return Math.max(a, b) / Math.min(a, b);
+}
 
 /* ── 조회 헬퍼 ──────────────────────────────────────────── */
 function allGangs() {
@@ -438,14 +445,19 @@ function renderPlan() {
    그리기 — 상단 · 독 · 안내 배너
    ============================================================ */
 function renderRatios() {
-  const a = paperAspect();
-  const hit = r => Math.abs(a - r.w / r.h) / (r.w / r.h) < 0.015;
+  const base = paperBaseRatio();
+  const hit = r => Math.abs(base - r.w / r.h) / (r.w / r.h) < 0.015;
   let h = '';
   RATIOS.forEach(r => {
     h += '<button class="tb-btn' + (hit(r) ? ' on' : '') + '" data-ratio="' + r.id + '">' + esc(r.id) + '</button>';
   });
   h += '<button class="tb-btn' + (RATIOS.some(hit) ? '' : ' on') + '" data-ratio="custom">사용자 지정</button>';
   $('#ratio-group').innerHTML = h;
+
+  const port = isPortrait();
+  $('#orient-group').innerHTML =
+    '<button class="tb-btn' + (port ? '' : ' on') + '" data-orient="land">가로</button>' +
+    '<button class="tb-btn' + (port ? ' on' : '') + '" data-orient="port">세로</button>';
 }
 function renderDock() {
   $$('#dock .dock-btn[data-tool]').forEach(b => b.classList.toggle('on', b.dataset.tool === ui.tool));
@@ -524,18 +536,12 @@ function renderPanel() {
     h += '</div>';
   }
 
-  h += '<div class="sec"><div class="sec-h"><span>종이와 방</span></div>' +
-       '<div class="room-row">위쪽 비율 버튼은 <b>종이</b> 모양을 바꿉니다. 방은 그대로 있습니다.</div>' +
-       '<div class="room-row">도면에서 방을 클릭하면 여덟 개의 점이 나타납니다. 점을 끌어 크기를, 안쪽을 끌어 위치를 바꾸세요.</div>' +
-       '<div class="room-row">종이 <b>' + paperAspect().toFixed(2) + ' : 1</b> · 방 <b>' + roomAspect().toFixed(2) + ' : 1</b></div></div>';
-
   h += '<div class="sec"><div class="sec-h"><span>벽 이름표</span></div><div class="sides">' +
        sideField('top', '위쪽', '칠판 · 앞') + sideField('bottom', '아래쪽', '뒤쪽') +
        sideField('left', '왼쪽', '창문') + sideField('right', '오른쪽', '출입문') +
        '</div></div>';
 
-  h += '<div class="sec"><div class="sec-h"><span>등</span>' +
-       '<button class="mini" data-act="grid">격자로 다시 배치</button></div>' +
+  h += '<div class="sec"><div class="sec-h"><span>등</span></div>' +
        '<div class="room-row">전체 <b>' + doc.lights.length + '개</b> · 배정 안 된 등 <b>' +
        doc.lights.filter(l => !gangsOf(l.id).length).length + '개</b></div></div>';
 
@@ -565,7 +571,6 @@ function bindPanel() {
       }
       else if (act === 'pick-gang') { ui.activeGang = ui.activeGang === id ? null : id; }
       else if (act === 'del-bg') { snapshot(); doc.bg = null; }
-      else if (act === 'grid') { openGridModal(); return; }
       persist(); render();
     };
   });
@@ -637,7 +642,8 @@ function bindCanvas() {
 
     if (hd) {
       svg.setPointerCapture(ev.pointerId);
-      drag = { kind: 'resize', dir: hd.dataset.handle, p0: pt, room0: Object.assign({}, doc.room), saved: false };
+      drag = { kind: 'resize', dir: hd.dataset.handle, p0: pt, room0: Object.assign({}, doc.room),
+               lights0: doc.lights.map(l => ({ w: l.w, h: l.h })), saved: false };
       return;
     }
     if (lg || sg) {
@@ -688,6 +694,12 @@ function bindCanvas() {
           if (d.indexOf('w') >= 0) x = r0.x + r0.w - w;
         }
         doc.room = { x: clamp(x, 0, 1 - w), y: clamp(y, 0, 1 - h), w: w, h: h };
+        /* 방이 커지고 작아지는 만큼 등도 함께 — 넓이 기준이라 등 모양은 그대로다 */
+        const k = Math.sqrt((doc.room.w * doc.room.h) / (r0.w * r0.h));
+        doc.lights.forEach((l, i) => {
+          const o = drag.lights0[i]; if (!o) return;
+          l.w = clamp(o.w * k, 10, 700); l.h = clamp(o.h * k, 6, 700);
+        });
       }
       renderPlan(); return;
     }
@@ -815,7 +827,7 @@ function openSwitchModal() {
 function openLeaveModal() {
   openModal('<h3>처음 화면으로 나갈까요?</h3>' +
     '<p class="m-sub">지금까지 만든 안내판은 이 브라우저에 저장돼 있어, 다시 들어오면 그대로 이어서 고칠 수 있습니다.</p>' +
-    '<div class="note">오래 보관하려면 나가기 전에 <b>저장</b>을 눌러 파일로 내려받아 두세요.</div>' +
+    '<div class="note">다른 기기에서도 이어서 고치려면 나가기 전에 <b>작업 저장</b>을 눌러 작업 파일을 내려받아 두세요. 인쇄물은 <b>인쇄 / PDF</b>로 따로 뽑습니다.</div>' +
     '<div class="modal-row"><button class="m-btn" data-close>계속 편집</button>' +
     '<button class="m-btn primary" id="lv-ok">나가기</button></div>', m => {
     $('#lv-ok', m).onclick = () => { closeModal(); go('home'); };
@@ -944,7 +956,15 @@ function boot() {
     const b = e.target.closest('[data-ratio]'); if (!b) return;
     if (b.dataset.ratio === 'custom') { openRatioModal(); return; }
     const r = RATIOS.filter(x => x.id === b.dataset.ratio)[0];
-    snapshot(); setPaper(r.w, r.h, r.id); persist(); render();
+    snapshot();
+    /* 지금 방향은 그대로 두고 비율만 바꾼다 */
+    if (isPortrait()) setPaper(r.h, r.w, r.id); else setPaper(r.w, r.h, r.id);
+    persist(); render();
+  };
+  $('#orient-group').onclick = e => {
+    const b = e.target.closest('[data-orient]'); if (!b) return;
+    if ((b.dataset.orient === 'port') === isPortrait()) return;
+    snapshot(); setPaper(doc.paper.h, doc.paper.w, doc.paper.id); persist(); render();
   };
 
   $$('#dock .dock-btn[data-tool]').forEach(b => b.onclick = () => {

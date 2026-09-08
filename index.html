@@ -24,7 +24,7 @@
         <h1 class="home-title">어느 스위치가<br>어느 등을 켤까?</h1>
         <p class="home-sub">하나씩 다 눌러보지 않아도 되도록,<br>스위치와 등을 이어주는 안내판을 만들어 인쇄하세요.</p>
         <button class="hero-btn" id="btn-start">양식 만들기</button>
-        <button class="ghost-btn" id="btn-load-file">저장해 둔 양식 불러오기</button>
+        <button class="ghost-btn" id="btn-load-file">저장해 둔 작업 파일 불러오기</button>
         <input type="file" id="file-input" accept="application/json" hidden>
       </div>
     </section>
@@ -65,15 +65,13 @@
 
         <button class="tb-btn" id="btn-template">＋ 사전 양식</button>
 
-        <div class="tb-group">
-          <span class="tb-label">방 모양</span>
-          <span id="ratio-group" role="group" aria-label="방 모양 비율"></span>
-        </div>
+        <div class="tb-group"><span id="ratio-group" role="group" aria-label="종이 비율"></span></div>
+        <div class="tb-group"><span id="orient-group" role="group" aria-label="종이 방향"></span></div>
 
         <div class="tb-spacer"></div>
 
         <button class="tb-btn accent" id="btn-add-switch">스위치 추가</button>
-        <button class="tb-btn" id="btn-save-file" title="다음에 다시 고칠 수 있게 파일로 저장">저장</button>
+        <button class="tb-btn" id="btn-save-file" title="나중에 다시 고칠 수 있게 작업 파일(.json)로 내려받습니다. 그림 파일이 아닙니다.">작업 저장</button>
         <button class="tb-btn primary" id="btn-print">인쇄 / PDF</button>
       </header>
 
