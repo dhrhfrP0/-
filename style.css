@@ -74,7 +74,7 @@ input{font-family:inherit}
 .tb-title:focus{outline:none;border-color:#ffffff59;background:#ffffff1f}
 .tb-group{display:flex;align-items:center;gap:2px;flex:0 0 auto;padding:2px;
   background:#ffffff14;border-radius:9px}
-#ratio-group,#orient-group{display:flex;gap:2px}
+#ratio-group{display:flex;gap:2px}
 .tb-btn{flex:0 0 auto;padding:8px 13px;font-size:13px;font-weight:600;white-space:nowrap;
   border-radius:8px;color:#e8eaee;background:#ffffff14;transition:background .12s}
 .tb-btn:hover{background:#ffffff29}

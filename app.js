@@ -26,7 +26,7 @@ const COLORS = [
   '#0d9488', '#e93d82', '#a16207', '#3e63dd', '#65a30d'
 ];
 const SHAPES = { bar: { w: 152, h: 34 }, square: { w: 74, h: 74 }, circle: { w: 74, h: 74 } };
-/* 긴 쪽을 가로로 적어 둔다. 방향은 가로/세로 버튼이 정한다. */
+/* 종이는 늘 가로로 눕힌다 */
 const RATIOS = [
   { id: '16:9', w: 16, h: 9 }, { id: '16:10', w: 16, h: 10 },
   { id: '4:3', w: 4, h: 3 },   { id: 'A4', w: 297, h: 210 }
@@ -84,6 +84,7 @@ function migrate(d) {
   d = Object.assign(blankDoc(), d || {});
   if (!d.room || typeof d.room.w !== 'number') d.room = Object.assign({}, DEFAULT_ROOM);
   if (!d.paper || typeof d.paper.w !== 'number') d.paper = Object.assign({}, d.ratio && d.ratio.w ? d.ratio : DEFAULT_PAPER);
+  if (d.paper.h > d.paper.w) { const t = d.paper.w; d.paper.w = d.paper.h; d.paper.h = t; d.paper.id = 'custom'; }
   (d.switches || []).forEach(sw => {
     sw.style = STYLE_ALIAS[sw.style] || sw.style || 'k-v';
     if (sw.ny > 1) { sw.nx = clamp(sw.nx, 0.06, 0.94); sw.ny = 0.88; }   // 옛 좌표계
@@ -111,13 +112,14 @@ function restore() {
     const d = JSON.parse(raw);
     if (!d || !Array.isArray(d.lights)) return false;
     doc = migrate(d);
+    persist();          /* 옛 형식을 고쳐 읽었으면 그 상태로 다시 저장해 둔다 */
     return true;
   } catch (e) { return false; }
 }
 
 /* ── 좌표 ───────────────────────────────────────────────── */
 function vb() { return { W: VB_W, H: paperH() }; }
-function paperH() { return clamp(Math.round(VB_W * doc.paper.h / doc.paper.w), 320, 1600); }
+function paperH() { return clamp(Math.round(VB_W * doc.paper.h / doc.paper.w), 150, 1000); }
 function roomBox() {
   const r = doc.room, H = paperH();
   return { x: r.x * VB_W, y: r.y * H, w: r.w * VB_W, h: r.h * H };
@@ -136,9 +138,10 @@ function setPaper(aw, ah, id) {
   const pxW = r.w * VB_W, pxH = r.h * oldH;           /* 방의 실제 크기 */
   const cx = (r.x + r.w / 2) * VB_W, cy = (r.y + r.h / 2) * oldH;
   const swY = doc.switches.map(sw => sw.ny * oldH);   /* 스위치판도 제자리에 둔다 */
+  /* 종이는 늘 가로로 눕힌다 */
+  if (ah > aw) { const t = aw; aw = ah; ah = t; }
   /* 고른 값이 정해진 비율과 같으면 그 이름을 그대로 쓴다 */
-  const base = Math.max(aw, ah) / Math.min(aw, ah);
-  const hit = RATIOS.filter(r => Math.abs(base - r.w / r.h) / (r.w / r.h) < 0.015)[0];
+  const hit = RATIOS.filter(r => Math.abs(aw / ah - r.w / r.h) / (r.w / r.h) < 0.015)[0];
   doc.paper = { id: id || (hit ? hit.id : 'custom'), w: aw, h: ah };
   const newH = paperH();
   const w = Math.min(pxW, VB_W * 0.98) / VB_W, h = Math.min(pxH, newH * 0.98) / newH;
@@ -150,16 +153,19 @@ function setPaper(aw, ah, id) {
   /* 종이를 여러 번 바꿔도 제자리로 돌아오도록 자르지 않고 그대로 둔다 (그릴 때 가둔다) */
   doc.switches.forEach((sw, i) => { sw.ny = swY[i] / newH; });
 }
-/* 방을 종이 안에 앉힌다. 아래쪽은 스위치판 자리로 남긴다. */
-function fitRoomToPaper() { doc.room = Object.assign({}, DEFAULT_ROOM); }
+/* 방을 종이 안에 앉힌다. 아래쪽은 스위치판 자리로 실제 높이만큼 남긴다.
+   비율로 남기면 복도처럼 납작한 종이에서 자리가 모자란다. */
+function fitRoomToPaper() {
+  const H = paperH();
+  const band = Math.min(H * 0.5, 168);
+  const top = Math.max(10, H * 0.07);
+  const h = Math.max(H * 0.28, H - top - band);
+  doc.room = { x: 0.07, y: top / H, w: 0.86, h: h / H };
+}
+/* 종이가 낮으면 스위치판도 함께 줄여 방 밖에 머물게 한다 */
+function plateScale() { return clamp(paperH() / 560, 0.55, 1); }
 function roomAspect() { const rb = roomBox(); return rb.w / rb.h; }
 function paperAspect() { return VB_W / paperH(); }
-function isPortrait() { return doc.paper.h > doc.paper.w; }
-/* 방향을 뺀 순수 비율 — 버튼 강조에 쓴다 */
-function paperBaseRatio() {
-  const a = doc.paper.w, b = doc.paper.h;
-  return Math.max(a, b) / Math.min(a, b);
-}
 
 /* ── 조회 헬퍼 ──────────────────────────────────────────── */
 function allGangs() {
@@ -218,7 +224,7 @@ function addSwitch(gangCount) {
     id: uid(), style: 'k-v',
     name: n === 0 ? '출입문 옆 스위치' : '스위치 ' + (n + 1),
     nx: clamp((rb.x + (0.16 + n * 0.26) * rb.w) / VB_W, 0.09, 0.91),
-    ny: clamp((rb.y + rb.h + 88) / paperH(), 0.1, 0.93),
+    ny: clamp((rb.y + rb.h + 20 + 62 * plateScale()) / paperH(), 0.1, 0.97),
     gangs: []
   };
   doc.switches.push(sw);   /* 색이 겹치지 않으려면 먼저 등록한 뒤 버튼을 만들어야 한다 */
@@ -392,17 +398,18 @@ function planSVG(forPrint) {
   doc.switches.forEach(sw => {
     if (!sw.gangs.length) return;
     const p = plateSVG(sw);
-    const nameH = 24;
-    const cx = clamp(sw.nx * VB_W, p.w / 2 + 4, VB_W - p.w / 2 - 4);
+    const k = plateScale();
+    const pw = p.w * k, ph = p.h * k, nameH = 24 * k;
+    const cx = clamp(sw.nx * VB_W, pw / 2 + 4, VB_W - pw / 2 - 4);
     const PH = paperH();
-    const cy = clamp(sw.ny * PH, p.h / 2 + 4, PH - p.h / 2 - nameH - 4);
-    const x0 = cx - p.w / 2, y0 = cy - p.h / 2;
+    const cy = clamp(sw.ny * PH, ph / 2 + 4, PH - ph / 2 - nameH - 4);
+    const x0 = cx - pw / 2, y0 = cy - ph / 2;
     const hot = !forPrint && ui.activeGang && sw.gangs.some(g => g.id === ui.activeGang);
     const sel = !forPrint && ui.sel && ui.sel.t === 'switch' && ui.sel.id === sw.id;
     const ring = (hot || sel)
       ? '<rect x="-5" y="-5" width="' + (p.w + 10) + '" height="' + (p.h + 10) +
         '" rx="12" fill="none" stroke="#111111" stroke-width="2.5" stroke-dasharray="6 4"/>' : '';
-    s += '<g data-switch="' + sw.id + '" transform="translate(' + x0 + ' ' + y0 + ')" style="cursor:move">' +
+    s += '<g data-switch="' + sw.id + '" transform="translate(' + x0 + ' ' + y0 + ') scale(' + k + ')" style="cursor:move">' +
          ring + p.svg +
          '<text font-family="' + FONT + '" x="' + (p.w / 2) + '" y="' + (p.h + 19) +
          '" font-size="17" font-weight="700" fill="#222" text-anchor="middle">' + esc(sw.name) + '</text>' +
@@ -445,19 +452,14 @@ function renderPlan() {
    그리기 — 상단 · 독 · 안내 배너
    ============================================================ */
 function renderRatios() {
-  const base = paperBaseRatio();
-  const hit = r => Math.abs(base - r.w / r.h) / (r.w / r.h) < 0.015;
+  const a = paperAspect();
+  const hit = r => Math.abs(a - r.w / r.h) / (r.w / r.h) < 0.015;
   let h = '';
   RATIOS.forEach(r => {
     h += '<button class="tb-btn' + (hit(r) ? ' on' : '') + '" data-ratio="' + r.id + '">' + esc(r.id) + '</button>';
   });
   h += '<button class="tb-btn' + (RATIOS.some(hit) ? '' : ' on') + '" data-ratio="custom">사용자 지정</button>';
   $('#ratio-group').innerHTML = h;
-
-  const port = isPortrait();
-  $('#orient-group').innerHTML =
-    '<button class="tb-btn' + (port ? '' : ' on') + '" data-orient="land">가로</button>' +
-    '<button class="tb-btn' + (port ? ' on' : '') + '" data-orient="port">세로</button>';
 }
 function renderDock() {
   $$('#dock .dock-btn[data-tool]').forEach(b => b.classList.toggle('on', b.dataset.tool === ui.tool));
@@ -797,7 +799,7 @@ function openGridModal() {
 }
 
 function openRatioModal() {
-  openModal('<h3>종이 비율 직접 넣기</h3><p class="m-sub">안내판을 그릴 종이의 가로·세로 비율을 넣으세요. 방 크기는 그대로 두고 종이만 달라집니다.</p>' +
+  openModal('<h3>종이 비율 직접 넣기</h3><p class="m-sub">안내판을 그릴 종이의 가로·세로 비율을 넣으세요. 종이는 늘 가로로 눕혀 그립니다. 방 크기는 그대로 두고 종이만 달라집니다.</p>' +
     '<div class="num-row"><label>가로</label><input type="number" id="r-w" min="1" max="9999" value="' + doc.paper.w + '"></div>' +
     '<div class="num-row"><label>세로</label><input type="number" id="r-h" min="1" max="9999" value="' + doc.paper.h + '"></div>' +
     '<div class="modal-row"><button class="m-btn" data-close>취소</button>' +
@@ -956,15 +958,7 @@ function boot() {
     const b = e.target.closest('[data-ratio]'); if (!b) return;
     if (b.dataset.ratio === 'custom') { openRatioModal(); return; }
     const r = RATIOS.filter(x => x.id === b.dataset.ratio)[0];
-    snapshot();
-    /* 지금 방향은 그대로 두고 비율만 바꾼다 */
-    if (isPortrait()) setPaper(r.h, r.w, r.id); else setPaper(r.w, r.h, r.id);
-    persist(); render();
-  };
-  $('#orient-group').onclick = e => {
-    const b = e.target.closest('[data-orient]'); if (!b) return;
-    if ((b.dataset.orient === 'port') === isPortrait()) return;
-    snapshot(); setPaper(doc.paper.h, doc.paper.w, doc.paper.id); persist(); render();
+    snapshot(); setPaper(r.w, r.h, r.id); persist(); render();
   };
 
   $$('#dock .dock-btn[data-tool]').forEach(b => b.onclick = () => {
