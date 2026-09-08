@@ -17,7 +17,7 @@ const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 /* 작업 캔버스. 파워포인트의 슬라이드처럼 크기가 고정돼 있고,
    방은 그 위에 놓인 도형이라 자유롭게 옮기고 늘릴 수 있다.
    인쇄할 때는 내용이 있는 만큼만 잘라내므로 빈 곳이 남지 않는다. */
-const VB_W = 1000, VB_H = 750;
+const VB_W = 1000;
 const STORE = 'switchdeung.doc.v2';
 const FONT  = "'Apple SD Gothic Neo','Malgun Gothic',sans-serif";
 
@@ -28,21 +28,23 @@ const COLORS = [
 ];
 const SHAPES = { bar: { w: 152, h: 34 }, square: { w: 74, h: 74 }, circle: { w: 74, h: 74 } };
 const RATIOS = [
-  { id: '16:9', w: 16, h: 9 }, { id: '16:10', w: 16, h: 10 },
-  { id: '4:3', w: 4, h: 3 },   { id: 'A4', w: 297, h: 210 }
+  { id: '16:9', w: 16, h: 9 }, { id: '16:10', w: 16, h: 10 }, { id: '4:3', w: 4, h: 3 },
+  { id: 'A4 가로', w: 297, h: 210 }, { id: 'A4 세로', w: 210, h: 297 }
 ];
-const DEFAULT_ROOM = { x: 0.08, y: 0.07, w: 0.84, h: 0.62 };
+/* 아래쪽은 벽 이름표와 스위치판이 앉을 자리로 비워 둔다 */
+const DEFAULT_ROOM = { x: 0.07, y: 0.07, w: 0.86, h: 0.70 };
+const DEFAULT_PAPER = { id: '4:3', w: 4, h: 3 };
 
-/* 스위치 생김새.
-   한국은 86×86mm 매입 플레이트(86형)가 표준이라 그것을 기본값으로 둔다. */
+/* 스위치 생김새 — 한국에서 쓰는 것만.
+   한국 매입 스위치는 버튼이 위아래로 쌓이고, 4구가 넘으면 두 줄(2연장)이 된다.
+   버튼 오른쪽의 짧은 빗금은 실제 제품에 있는 표시다. */
 const SWITCH_STYLES = [
-  { id: 'k86',    name: '매입형 86형',    desc: '한국 표준 · 정사각 플레이트' },
-  { id: 'wide',   name: '대형 버튼',      desc: '학교·사무실에 흔한 넓은 버튼' },
-  { id: 'touch',  name: '터치 유리',      desc: '유리 패널 터치식' },
-  { id: 'round',  name: '노출형 원형',    desc: '벽 표면에 붙는 둥근 스위치' },
-  { id: 'decora', name: '로커 (데코라)',  desc: '미국·유럽식 넓은 판형' },
-  { id: 'toggle', name: '토글',           desc: '미국식 레버형' }
+  { id: 'k-v',   name: '매입형 · 세로 배열', desc: '버튼이 위아래로 · 가장 흔한 형태' },
+  { id: 'k-h',   name: '매입형 · 가로 배열', desc: '버튼이 좌우로 나란히' },
+  { id: 'touch', name: '터치 유리',          desc: '유리 패널 터치식' },
+  { id: 'round', name: '노출형 원형',        desc: '벽 표면에 붙는 둥근 스위치' }
 ];
+const STYLE_ALIAS = { k86: 'k-h', wide: 'k-v', decora: 'k-h', toggle: 'k-v' };
 
 const TEMPLATES = [
   { id:'classroom', name:'일반 교실', desc:'형광등 3줄 × 3개 · 스위치 3구',
@@ -66,6 +68,7 @@ const TEMPLATES = [
 function blankDoc() {
   return {
     title: '', hasBlueprint: false,
+    paper: Object.assign({}, DEFAULT_PAPER),
     room: Object.assign({}, DEFAULT_ROOM),
     bg: null, bgOpacity: 0.45,
     sides: { top: '', right: '', bottom: '', left: '' },
@@ -80,8 +83,9 @@ let undoStack = [];
 function migrate(d) {
   d = Object.assign(blankDoc(), d || {});
   if (!d.room || typeof d.room.w !== 'number') d.room = Object.assign({}, DEFAULT_ROOM);
+  if (!d.paper || typeof d.paper.w !== 'number') d.paper = Object.assign({}, d.ratio && d.ratio.w ? d.ratio : DEFAULT_PAPER);
   (d.switches || []).forEach(sw => {
-    if (!sw.style) sw.style = 'k86';
+    sw.style = STYLE_ALIAS[sw.style] || sw.style || 'k-v';
     if (sw.ny > 1) { sw.nx = clamp(sw.nx, 0.06, 0.94); sw.ny = 0.88; }   // 옛 좌표계
   });
   delete d.ratio;
@@ -112,27 +116,43 @@ function restore() {
 }
 
 /* ── 좌표 ───────────────────────────────────────────────── */
-function vb() { return { W: VB_W, H: VB_H }; }
+function vb() { return { W: VB_W, H: paperH() }; }
+function paperH() { return clamp(Math.round(VB_W * doc.paper.h / doc.paper.w), 320, 1600); }
 function roomBox() {
-  const r = doc.room;
-  return { x: r.x * VB_W, y: r.y * VB_H, w: r.w * VB_W, h: r.h * VB_H };
+  const r = doc.room, H = paperH();
+  return { x: r.x * VB_W, y: r.y * H, w: r.w * VB_W, h: r.h * H };
 }
 function svgPoint(ev) {
   const r = $('#plan').getBoundingClientRect();
-  return { x: (ev.clientX - r.left) * (VB_W / r.width), y: (ev.clientY - r.top) * (VB_H / r.height) };
+  return { x: (ev.clientX - r.left) * (VB_W / r.width), y: (ev.clientY - r.top) * (paperH() / r.height) };
 }
 function toRoomNorm(pt) {
   const rb = roomBox();
   return { nx: clamp((pt.x - rb.x) / rb.w, 0, 1), ny: clamp((pt.y - rb.y) / rb.h, 0, 1) };
 }
-/* 방을 주어진 가로:세로 비율에 맞춰 다시 앉힌다 */
-function applyRoomAspect(aw, ah) {
-  const maxW = 0.90 * VB_W, maxH = 0.70 * VB_H;
-  let w = maxW, h = w * ah / aw;
-  if (h > maxH) { h = maxH; w = h * aw / ah; }
-  doc.room = { x: 0.5 - (w / VB_W) / 2, y: 0.07, w: w / VB_W, h: h / VB_H };
+/* 종이 모양을 바꾼다. 방은 실제 크기를 그대로 지키고 종이만 달라진다. */
+function setPaper(aw, ah, id) {
+  const oldH = paperH(), r = doc.room;
+  const pxW = r.w * VB_W, pxH = r.h * oldH;           /* 방의 실제 크기 */
+  const cx = (r.x + r.w / 2) * VB_W, cy = (r.y + r.h / 2) * oldH;
+  const swY = doc.switches.map(sw => sw.ny * oldH);   /* 스위치판도 제자리에 둔다 */
+  /* 고른 값이 정해진 비율과 같으면 그 이름을 그대로 쓴다 */
+  const hit = RATIOS.filter(r => Math.abs(aw / ah - r.w / r.h) / (r.w / r.h) < 0.015)[0];
+  doc.paper = { id: id || (hit ? hit.id : 'custom'), w: aw, h: ah };
+  const newH = paperH();
+  const w = Math.min(pxW, VB_W * 0.98) / VB_W, h = Math.min(pxH, newH * 0.98) / newH;
+  doc.room = {
+    x: clamp(cx / VB_W - w / 2, 0, 1 - w),
+    y: clamp(cy / newH - h / 2, 0, 1 - h),        /* 실제 위치를 지킨다 */
+    w: w, h: h
+  };
+  /* 종이를 여러 번 바꿔도 제자리로 돌아오도록 자르지 않고 그대로 둔다 (그릴 때 가둔다) */
+  doc.switches.forEach((sw, i) => { sw.ny = swY[i] / newH; });
 }
+/* 방을 종이 안에 앉힌다. 아래쪽은 스위치판 자리로 남긴다. */
+function fitRoomToPaper() { doc.room = Object.assign({}, DEFAULT_ROOM); }
 function roomAspect() { const rb = roomBox(); return rb.w / rb.h; }
+function paperAspect() { return VB_W / paperH(); }
 
 /* ── 조회 헬퍼 ──────────────────────────────────────────── */
 function allGangs() {
@@ -188,10 +208,10 @@ function addSwitch(gangCount) {
   const n = doc.switches.length;
   const rb = roomBox();
   const sw = {
-    id: uid(), style: 'k86',
+    id: uid(), style: 'k-v',
     name: n === 0 ? '출입문 옆 스위치' : '스위치 ' + (n + 1),
     nx: clamp((rb.x + (0.16 + n * 0.26) * rb.w) / VB_W, 0.09, 0.91),
-    ny: clamp((rb.y + rb.h + 88) / VB_H, 0.1, 0.93),
+    ny: clamp((rb.y + rb.h + 88) / paperH(), 0.1, 0.93),
     gangs: []
   };
   doc.switches.push(sw);   /* 색이 겹치지 않으려면 먼저 등록한 뒤 버튼을 만들어야 한다 */
@@ -226,83 +246,85 @@ function gridPlace(rows, cols, shape) {
 function plateSVG(sw) {
   const gs = sw.gangs, n = gs.length;
   const labels = gs.map(dlabel);
+  const style = STYLE_ALIAS[sw.style] || sw.style || 'k-v';
   const txt = (x, y, t, fill, size) =>
     '<text font-family="' + FONT + '" x="' + x + '" y="' + y + '" font-size="' + size +
     '" font-weight="800" fill="' + fill + '" text-anchor="middle">' + esc(t) + '</text>';
   const fs = labels.some(t => t.length > 1) ? 13 : 15;
-  const style = sw.style || 'k86';
-  let W, H, s = '';
+  /* 실제 제품 버튼 오른쪽에 있는 짧은 빗금 */
+  const hatch = (x, cy, ink) => {
+    let o = '';
+    [-3.5, 3.5].forEach(d => {
+      o += '<line x1="' + x + '" y1="' + (cy + d) + '" x2="' + (x + 9) + '" y2="' + (cy + d) +
+           '" stroke="' + ink + '" stroke-width="1.6" opacity=".55"/>';
+    });
+    return o;
+  };
+  const frame = (W, H, r) =>
+    '<rect width="' + W + '" height="' + H + '" rx="' + r + '" fill="#f6f5f1" stroke="#b3b6bb" stroke-width="1.8"/>' +
+    '<rect x="4.5" y="4.5" width="' + (W - 9) + '" height="' + (H - 9) + '" rx="' + Math.max(1, r - 2) +
+    '" fill="#fdfdfb" stroke="#e0e1e3"/>';
 
-  if (style === 'k86') {
-    W = Math.max(98, 98 + Math.max(0, n - 3) * 30); H = 98;
-    const inner = 14, bh = 58, gap = 5;
-    const bw = (W - inner * 2 - (n - 1) * gap) / n, by = (H - bh) / 2;
-    s += '<rect width="' + W + '" height="' + H + '" rx="10" fill="#f7f7f5" stroke="#b9bcc2" stroke-width="1.8"/>';
-    s += '<rect x="6" y="6" width="' + (W - 12) + '" height="' + (H - 12) + '" rx="7" fill="#ffffff" stroke="#e2e4e8"/>';
+  let W, H, s2 = '';
+
+  if (style === 'k-v') {
+    /* 버튼이 위아래로. 4구 이상이면 두 줄로 나뉜다 (2연장) */
+    const cols = Math.ceil(n / 3), rows = Math.ceil(n / cols);
+    const bw = 46, gap = 5, pad = 11;
+    const bh = rows === 1 ? 56 : (rows === 2 ? 49 : 31);
+    W = pad * 2 + cols * bw + (cols - 1) * gap;
+    H = pad * 2 + rows * bh + (rows - 1) * gap;
+    s2 += frame(W, H, 6);
     gs.forEach((g, i) => {
-      const x = inner + i * (bw + gap);
-      s += '<rect x="' + x + '" y="' + by + '" width="' + bw + '" height="' + bh + '" rx="3" fill="' + g.color + '"/>';
-      s += txt(x + bw / 2, by + bh / 2 + fs * 0.36, labels[i], inkOn(g.color), fs);
+      const c = Math.floor(i / rows), r = i % rows;
+      const bx = pad + c * (bw + gap), by = pad + r * (bh + gap);
+      const ink = inkOn(g.color);
+      s2 += '<rect x="' + bx + '" y="' + by + '" width="' + bw + '" height="' + bh + '" rx="3.5" fill="' + g.color + '"/>';
+      s2 += hatch(bx + bw - 13, by + bh / 2, ink);
+      s2 += txt(bx + (bw - 14) / 2, by + bh / 2 + fs * 0.36, labels[i], ink, fs);
     });
 
-  } else if (style === 'wide') {
-    const bw = 48, bh = 66, gap = 6, pad = 12;
-    W = n * bw + (n - 1) * gap + pad * 2; H = bh + pad * 2;
-    s += '<rect width="' + W + '" height="' + H + '" rx="8" fill="#fafafa" stroke="#b9bcc2" stroke-width="1.8"/>';
+  } else if (style === 'k-h') {
+    /* 버튼이 좌우로 나란히 — 정사각 플레이트 */
+    const bh = 62, gap = 5, pad = 13;
+    const bw = n <= 3 ? (96 - pad * 2 - (n - 1) * gap) / n : 24;
+    W = Math.max(96, pad * 2 + n * bw + (n - 1) * gap);
+    H = 96;
+    const by = (H - bh) / 2;
+    s2 += frame(W, H, 8);
     gs.forEach((g, i) => {
-      const x = pad + i * (bw + gap);
-      s += '<rect x="' + x + '" y="' + pad + '" width="' + bw + '" height="' + bh + '" rx="5" fill="' + g.color + '"/>';
-      s += '<line x1="' + x + '" y1="' + (pad + bh * 0.42) + '" x2="' + (x + bw) + '" y2="' + (pad + bh * 0.42) +
-           '" stroke="#00000026" stroke-width="1.6"/>';
-      s += txt(x + bw / 2, pad + bh * 0.78, labels[i], inkOn(g.color), fs + 1);
-    });
-
-  } else if (style === 'decora') {
-    const bw = 38, bh = 80, gap = 6, pad = 11;
-    W = n * bw + (n - 1) * gap + pad * 2; H = bh + pad * 2;
-    s += '<rect width="' + W + '" height="' + H + '" rx="6" fill="#f6f6f4" stroke="#b9bcc2" stroke-width="1.8"/>';
-    gs.forEach((g, i) => {
-      const x = pad + i * (bw + gap);
-      s += '<rect x="' + x + '" y="' + pad + '" width="' + bw + '" height="' + bh + '" rx="4" fill="' + g.color + '"/>';
-      s += '<line x1="' + x + '" y1="' + (pad + bh * 0.3) + '" x2="' + (x + bw) + '" y2="' + (pad + bh * 0.3) +
-           '" stroke="#00000026" stroke-width="1.6"/>';
-      s += txt(x + bw / 2, pad + bh * 0.72, labels[i], inkOn(g.color), fs);
-    });
-
-  } else if (style === 'toggle') {
-    const cw = 42, pad = 10; H = 104;
-    W = n * cw + pad * 2;
-    s += '<rect width="' + W + '" height="' + H + '" rx="5" fill="#f4f4f2" stroke="#b9bcc2" stroke-width="1.8"/>';
-    gs.forEach((g, i) => {
-      const x = pad + i * cw + 3, ew = cw - 6;
-      s += '<rect x="' + x + '" y="14" width="' + ew + '" height="76" rx="4" fill="' + g.color + '"/>';
-      s += '<rect x="' + (x + ew / 2 - 7) + '" y="22" width="14" height="32" rx="6" fill="#ffffff" opacity=".92"/>';
-      s += txt(x + ew / 2, 78, labels[i], inkOn(g.color), fs);
+      const bx = pad + i * (bw + gap), ink = inkOn(g.color);
+      s2 += '<rect x="' + bx + '" y="' + by + '" width="' + bw + '" height="' + bh + '" rx="3" fill="' + g.color + '"/>';
+      s2 += txt(bx + bw / 2, by + bh / 2 + fs * 0.36, labels[i], ink, fs);
+      [-3.5, 3.5].forEach(d => {
+        s2 += '<line x1="' + (bx + bw / 2 + d) + '" y1="' + (by + bh - 13) + '" x2="' + (bx + bw / 2 + d) +
+              '" y2="' + (by + bh - 5) + '" stroke="' + ink + '" stroke-width="1.6" opacity=".55"/>';
+      });
     });
 
   } else if (style === 'touch') {
     const d = 36, gap = 15, pad = 16; H = 86;
     W = n * d + (n - 1) * gap + pad * 2;
-    s += '<rect width="' + W + '" height="' + H + '" rx="11" fill="#1c1f26" stroke="#3a3f49" stroke-width="1.6"/>';
+    s2 += '<rect width="' + W + '" height="' + H + '" rx="11" fill="#1c1f26" stroke="#3a3f49" stroke-width="1.6"/>';
     gs.forEach((g, i) => {
       const cx = pad + i * (d + gap) + d / 2, cy = H / 2;
-      s += '<circle cx="' + cx + '" cy="' + cy + '" r="' + (d / 2 + 5) + '" fill="none" stroke="' + g.color + '" stroke-width="1.6" opacity=".45"/>';
-      s += '<circle cx="' + cx + '" cy="' + cy + '" r="' + (d / 2) + '" fill="' + g.color + '"/>';
-      s += txt(cx, cy + fs * 0.36, labels[i], inkOn(g.color), fs);
+      s2 += '<circle cx="' + cx + '" cy="' + cy + '" r="' + (d / 2 + 5) + '" fill="none" stroke="' + g.color + '" stroke-width="1.6" opacity=".45"/>';
+      s2 += '<circle cx="' + cx + '" cy="' + cy + '" r="' + (d / 2) + '" fill="' + g.color + '"/>';
+      s2 += txt(cx, cy + fs * 0.36, labels[i], inkOn(g.color), fs);
     });
 
   } else { /* round — 노출형 */
     const d = 44, gap = 10, pad = 12;
     W = n * d + (n - 1) * gap + pad * 2; H = d + pad * 2;
-    s += '<rect width="' + W + '" height="' + H + '" rx="' + (H / 2) + '" fill="#fbfbfa" stroke="#b9bcc2" stroke-width="1.8"/>';
+    s2 += '<rect width="' + W + '" height="' + H + '" rx="' + (H / 2) + '" fill="#fbfbfa" stroke="#b3b6bb" stroke-width="1.8"/>';
     gs.forEach((g, i) => {
       const cx = pad + i * (d + gap) + d / 2, cy = H / 2;
-      s += '<circle cx="' + cx + '" cy="' + cy + '" r="' + (d / 2) + '" fill="' + g.color + '"/>';
-      s += '<circle cx="' + cx + '" cy="' + cy + '" r="' + (d / 2 - 6) + '" fill="none" stroke="#ffffff" stroke-width="1.4" opacity=".55"/>';
-      s += txt(cx, cy + fs * 0.36, labels[i], inkOn(g.color), fs);
+      s2 += '<circle cx="' + cx + '" cy="' + cy + '" r="' + (d / 2) + '" fill="' + g.color + '"/>';
+      s2 += '<circle cx="' + cx + '" cy="' + cy + '" r="' + (d / 2 - 6) + '" fill="none" stroke="#ffffff" stroke-width="1.4" opacity=".55"/>';
+      s2 += txt(cx, cy + fs * 0.36, labels[i], inkOn(g.color), fs);
     });
   }
-  return { w: W, h: H, svg: s };
+  return { w: W, h: H, svg: s2 };
 }
 
 /* ============================================================
@@ -365,7 +387,8 @@ function planSVG(forPrint) {
     const p = plateSVG(sw);
     const nameH = 24;
     const cx = clamp(sw.nx * VB_W, p.w / 2 + 4, VB_W - p.w / 2 - 4);
-    const cy = clamp(sw.ny * VB_H, p.h / 2 + 4, VB_H - p.h / 2 - nameH - 4);
+    const PH = paperH();
+    const cy = clamp(sw.ny * PH, p.h / 2 + 4, PH - p.h / 2 - nameH - 4);
     const x0 = cx - p.w / 2, y0 = cy - p.h / 2;
     const hot = !forPrint && ui.activeGang && sw.gangs.some(g => g.id === ui.activeGang);
     const sel = !forPrint && ui.sel && ui.sel.t === 'switch' && ui.sel.id === sw.id;
@@ -405,22 +428,23 @@ function planSVG(forPrint) {
 
 function renderPlan() {
   const svg = $('#plan');
-  svg.setAttribute('viewBox', '0 0 ' + VB_W + ' ' + VB_H);
-  svg.innerHTML = '<rect width="' + VB_W + '" height="' + VB_H + '" fill="#ffffff"/>' + planSVG(false);
+  const H = paperH();
+  $('#paper').style.aspectRatio = VB_W + ' / ' + H;
+  svg.setAttribute('viewBox', '0 0 ' + VB_W + ' ' + H);
+  svg.innerHTML = '<rect width="' + VB_W + '" height="' + H + '" fill="#ffffff"/>' + planSVG(false);
 }
 
 /* ============================================================
    그리기 — 상단 · 독 · 안내 배너
    ============================================================ */
 function renderRatios() {
-  const a = roomAspect();
+  const a = paperAspect();
+  const hit = r => Math.abs(a - r.w / r.h) / (r.w / r.h) < 0.015;
   let h = '';
   RATIOS.forEach(r => {
-    const on = Math.abs(a - r.w / r.h) / (r.w / r.h) < 0.015;
-    h += '<button class="tb-btn' + (on ? ' on' : '') + '" data-ratio="' + r.id + '">' + r.id + '</button>';
+    h += '<button class="tb-btn' + (hit(r) ? ' on' : '') + '" data-ratio="' + r.id + '">' + esc(r.id) + '</button>';
   });
-  const anyOn = RATIOS.some(r => Math.abs(a - r.w / r.h) / (r.w / r.h) < 0.015);
-  h += '<button class="tb-btn' + (anyOn ? '' : ' on') + '" data-ratio="custom">사용자 지정</button>';
+  h += '<button class="tb-btn' + (RATIOS.some(hit) ? '' : ' on') + '" data-ratio="custom">사용자 지정</button>';
   $('#ratio-group').innerHTML = h;
 }
 function renderDock() {
@@ -456,10 +480,9 @@ function renderPanel() {
   const p = $('#panel-scroll');
   let h = '';
 
-  h += '<div class="sec"><div class="sec-h"><span>스위치</span>' +
-       '<button class="mini" data-act="add-switch">＋ 추가</button></div>';
+  h += '<div class="sec"><div class="sec-h"><span>스위치</span></div>';
   if (!doc.switches.length) {
-    h += '<div class="empty">아직 스위치가 없습니다.<br>“스위치 추가”를 눌러 시작하세요.</div>';
+    h += '<div class="empty">아직 스위치가 없습니다.<br>위쪽 <b>스위치 추가</b>를 눌러 시작하세요.</div>';
   }
   doc.switches.forEach(sw => {
     h += '<div class="sw"><div class="sw-head">' +
@@ -468,7 +491,8 @@ function renderPanel() {
          '</div>';
     h += '<div class="style-row"><select data-sw-style="' + sw.id + '" title="스위치 생김새">';
     SWITCH_STYLES.forEach(st => {
-      h += '<option value="' + st.id + '"' + ((sw.style || 'k86') === st.id ? ' selected' : '') + '>' +
+      const cur = STYLE_ALIAS[sw.style] || sw.style || 'k-v';
+      h += '<option value="' + st.id + '"' + (cur === st.id ? ' selected' : '') + '>' +
            esc(st.name) + ' — ' + esc(st.desc) + '</option>';
     });
     h += '</select></div>';
@@ -500,9 +524,10 @@ function renderPanel() {
     h += '</div>';
   }
 
-  h += '<div class="sec"><div class="sec-h"><span>방</span></div>' +
-       '<div class="room-row">도면을 클릭하면 여덟 개의 점이 나타납니다. 점을 끌어 크기를, 안쪽을 끌어 위치를 바꾸세요.</div>' +
-       '<div class="room-row">지금 비율 <b>' + roomAspect().toFixed(2) + ' : 1</b></div></div>';
+  h += '<div class="sec"><div class="sec-h"><span>종이와 방</span></div>' +
+       '<div class="room-row">위쪽 비율 버튼은 <b>종이</b> 모양을 바꿉니다. 방은 그대로 있습니다.</div>' +
+       '<div class="room-row">도면에서 방을 클릭하면 여덟 개의 점이 나타납니다. 점을 끌어 크기를, 안쪽을 끌어 위치를 바꾸세요.</div>' +
+       '<div class="room-row">종이 <b>' + paperAspect().toFixed(2) + ' : 1</b> · 방 <b>' + roomAspect().toFixed(2) + ' : 1</b></div></div>';
 
   h += '<div class="sec"><div class="sec-h"><span>벽 이름표</span></div><div class="sides">' +
        sideField('top', '위쪽', '칠판 · 앞') + sideField('bottom', '아래쪽', '뒤쪽') +
@@ -527,8 +552,7 @@ function bindPanel() {
   $$('[data-act]', p).forEach(btn => {
     btn.onclick = () => {
       const act = btn.dataset.act, id = btn.dataset.id;
-      if (act === 'add-switch') { snapshot(); ui.activeGang = addSwitch(2).gangs[0].id; }
-      else if (act === 'del-switch') { snapshot(); doc.switches = doc.switches.filter(s => s.id !== id); ui.activeGang = null; }
+      if (act === 'del-switch') { snapshot(); doc.switches = doc.switches.filter(s => s.id !== id); ui.activeGang = null; }
       else if (act === 'add-gang') {
         snapshot();
         const sw = doc.switches.filter(s => s.id === id)[0];
@@ -572,7 +596,7 @@ function bindPanel() {
     rd.onload = () => {
       snapshot(); doc.bg = rd.result;
       const img = new Image();
-      img.onload  = () => { applyRoomAspect(img.naturalWidth, img.naturalHeight); persist(); render(); };
+      img.onload  = () => { setPaper(img.naturalWidth, img.naturalHeight); fitRoomToPaper(); persist(); render(); };
       img.onerror = () => { persist(); render(); };
       img.src = rd.result;
     };
@@ -641,7 +665,8 @@ function bindCanvas() {
 
     if (drag.kind === 'resize' || drag.kind === 'room') {
       if (!drag.saved) { snapshot(); drag.saved = true; }
-      const r0 = drag.room0, dx = (pt.x - drag.p0.x) / VB_W, dy = (pt.y - drag.p0.y) / VB_H;
+      const PH = paperH();
+      const r0 = drag.room0, dx = (pt.x - drag.p0.x) / VB_W, dy = (pt.y - drag.p0.y) / PH;
 
       if (drag.kind === 'room') {
         doc.room = { x: clamp(r0.x + dx, 0, 1 - r0.w), y: clamp(r0.y + dy, 0, 1 - r0.h), w: r0.w, h: r0.h };
@@ -657,8 +682,8 @@ function bindCanvas() {
         if (h < MIN) { if (d.indexOf('n') >= 0) y = r0.y + r0.h - MIN; h = MIN; }
         /* Shift를 누르면 모서리에서 비율을 지킨다 */
         if (ev.shiftKey && d.length === 2) {
-          const ar = (r0.w * VB_W) / (r0.h * VB_H);
-          h = (w * VB_W / ar) / VB_H;
+          const ar = (r0.w * VB_W) / (r0.h * PH);
+          h = (w * VB_W / ar) / PH;
           if (d.indexOf('n') >= 0) y = r0.y + r0.h - h;
           if (d.indexOf('w') >= 0) x = r0.x + r0.w - w;
         }
@@ -676,7 +701,7 @@ function bindCanvas() {
       if (l) { l.nx = clamp((pt.x - rb.x) / rb.w, 0, 1); l.ny = clamp((pt.y - rb.y) / rb.h, 0, 1); }
     } else {
       const sw = doc.switches.filter(x => x.id === drag.id)[0];
-      if (sw) { sw.nx = clamp(pt.x / VB_W, 0, 1); sw.ny = clamp(pt.y / VB_H, 0, 1); }
+      if (sw) { sw.nx = clamp(pt.x / VB_W, 0, 1); sw.ny = clamp(pt.y / paperH(), 0, 1); }
     }
     renderPlan();
   });
@@ -728,7 +753,7 @@ function openTemplateModal() {
     $$('[data-tpl]', m).forEach(b => b.onclick = () => {
       const t = TEMPLATES.filter(x => x.id === b.dataset.tpl)[0];
       snapshot();
-      applyRoomAspect(t.ratio[0], t.ratio[1]);
+      setPaper(t.ratio[0], t.ratio[1]); fitRoomToPaper();
       doc.sides = Object.assign({ top: '', right: '', bottom: '', left: '' }, t.sides);
       doc.switches = [];
       ui.shape = t.shape;
@@ -760,16 +785,15 @@ function openGridModal() {
 }
 
 function openRatioModal() {
-  const rb = roomBox();
-  openModal('<h3>방 비율 직접 넣기</h3><p class="m-sub">가로·세로 비율을 넣으세요. 실제 치수(예: 900 × 750cm)를 그대로 넣어도 됩니다.</p>' +
-    '<div class="num-row"><label>가로</label><input type="number" id="r-w" min="1" max="9999" value="' + Math.round(rb.w) + '"></div>' +
-    '<div class="num-row"><label>세로</label><input type="number" id="r-h" min="1" max="9999" value="' + Math.round(rb.h) + '"></div>' +
+  openModal('<h3>종이 비율 직접 넣기</h3><p class="m-sub">안내판을 그릴 종이의 가로·세로 비율을 넣으세요. 방 크기는 그대로 두고 종이만 달라집니다.</p>' +
+    '<div class="num-row"><label>가로</label><input type="number" id="r-w" min="1" max="9999" value="' + doc.paper.w + '"></div>' +
+    '<div class="num-row"><label>세로</label><input type="number" id="r-h" min="1" max="9999" value="' + doc.paper.h + '"></div>' +
     '<div class="modal-row"><button class="m-btn" data-close>취소</button>' +
     '<button class="m-btn primary" id="r-ok">적용</button></div>', m => {
     $('#r-ok', m).onclick = () => {
       const w = clamp(parseInt($('#r-w', m).value, 10) || 4, 1, 9999);
       const h = clamp(parseInt($('#r-h', m).value, 10) || 3, 1, 9999);
-      snapshot(); applyRoomAspect(w, h); persist(); render(); closeModal();
+      snapshot(); setPaper(w, h); persist(); render(); closeModal();
     };
   });
 }
@@ -777,7 +801,7 @@ function openRatioModal() {
 function openSwitchModal() {
   openModal('<h3>스위치 추가</h3><p class="m-sub">스위치판에 버튼이 몇 개 달려 있나요? (보통 “○구”라고 부릅니다)</p>' +
     '<div class="num-row"><label>버튼 개수</label><input type="number" id="s-n" min="1" max="8" value="2"></div>' +
-    '<div class="note">생김새는 추가한 뒤 오른쪽 목록에서 바꿀 수 있습니다. 기본값은 한국에서 가장 흔한 86형 매입 스위치입니다.</div>' +
+    '<div class="note">생김새는 추가한 뒤 오른쪽 목록에서 바꿀 수 있습니다. 기본값은 버튼이 위아래로 쌓인 매입형이며, 4구가 넘으면 두 줄로 그려집니다.</div>' +
     '<div class="modal-row"><button class="m-btn" data-close>취소</button>' +
     '<button class="m-btn primary" id="s-ok">추가</button></div>', m => {
     $('#s-ok', m).onclick = () => {
@@ -834,30 +858,19 @@ function buildPrintSheet() {
   root.innerHTML =
     '<div class="sheet">' +
       '<div class="sheet-head"><h1>' + esc(title) + '</h1><div class="sh-tag">조명 스위치 안내판</div></div>' +
-      '<div class="sheet-plan"><svg id="p-svg" xmlns="http://www.w3.org/2000/svg"><g id="p-all">' +
-        planSVG(true) + '</g></svg></div>' +
+      '<div class="sheet-plan"><svg id="p-svg" xmlns="http://www.w3.org/2000/svg">' +
+        '<rect width="' + VB_W + '" height="' + paperH() + '" fill="#ffffff"/>' + planSVG(true) + '</svg></div>' +
       (lg ? '<h2 class="lg-title">스위치 · 버튼별 안내</h2><div class="lg-grid">' + lg + '</div>' : '') +
       '<div class="sheet-foot"><span>등 안의 숫자 = 그 등을 켜는 스위치 버튼 번호</span><span>' + stamp + '</span></div>' +
     '</div>';
 
   /* 내용이 있는 만큼만 잘라낸다 — 작업 캔버스의 빈 곳은 인쇄되지 않는다 */
-  root.style.cssText = 'display:block;position:fixed;left:-10000px;top:0;width:820px';
   const svg = document.getElementById('p-svg');
-  let aspect = VB_W / VB_H;
-  try {
-    const bb = document.getElementById('p-all').getBBox();
-    const pad = 16;
-    const w = bb.width + pad * 2, h = bb.height + pad * 2;
-    svg.setAttribute('viewBox', (bb.x - pad) + ' ' + (bb.y - pad) + ' ' + w + ' ' + h);
-    aspect = w / h;
-  } catch (e) {
-    svg.setAttribute('viewBox', '0 0 ' + VB_W + ' ' + VB_H);
-  }
-  /* A4 세로, 위아래 14mm 여백 → 쓸 수 있는 폭 182mm.
-     도면이 세로로 길면 폭을 줄여 범례가 같은 쪽에 남게 한다. */
-  const PAGE_W = 182, PLAN_H = 146;
-  svg.style.width = Math.min(PAGE_W, PLAN_H * aspect) + 'mm';
-  root.style.cssText = '';
+  svg.setAttribute('viewBox', '0 0 ' + VB_W + ' ' + paperH());
+  /* A4 세로, 좌우 14mm 여백 → 쓸 수 있는 폭 182mm.
+     종이가 세로로 길면 폭을 줄여 범례가 같은 쪽에 남게 한다. */
+  const PAGE_W = 182, PLAN_H = 150;
+  svg.style.width = Math.min(PAGE_W, PLAN_H * paperAspect()) + 'mm';
 }
 
 /* ============================================================
@@ -908,7 +921,7 @@ function boot() {
     const yes = b.dataset.blueprint === 'yes';
     doc = blankDoc(); doc.hasBlueprint = yes; undoStack = [];
     ui.sel = null; ui.activeGang = null;
-    if (!yes) { applyRoomAspect(4, 3); gridPlace(3, 3, 'bar'); doc.sides.top = '칠판 (앞쪽)'; }
+    if (!yes) { setPaper(4, 3, '4:3'); fitRoomToPaper(); gridPlace(3, 3, 'bar'); doc.sides.top = '칠판 (앞쪽)'; }
     persist(); go('editor');
     if (!yes) setTimeout(openTemplateModal, 220);
   });
@@ -931,7 +944,7 @@ function boot() {
     const b = e.target.closest('[data-ratio]'); if (!b) return;
     if (b.dataset.ratio === 'custom') { openRatioModal(); return; }
     const r = RATIOS.filter(x => x.id === b.dataset.ratio)[0];
-    snapshot(); applyRoomAspect(r.w, r.h); persist(); render();
+    snapshot(); setPaper(r.w, r.h, r.id); persist(); render();
   };
 
   $$('#dock .dock-btn[data-tool]').forEach(b => b.onclick = () => {
@@ -965,7 +978,6 @@ function boot() {
   });
 
   bindCanvas();
-  $('#paper').style.aspectRatio = VB_W + ' / ' + VB_H;
 
   if (had && (doc.lights.length || doc.switches.length)) go('editor');
   else go('home');
