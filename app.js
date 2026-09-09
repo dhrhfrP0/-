@@ -20,12 +20,15 @@ const VB_W = 1000;
 const STORE = 'switchdeung.doc.v2';
 const FONT  = "'Apple SD Gothic Neo','Malgun Gothic',sans-serif";
 
-const SHAPES = {
-  bar:    { w: 152, h: 34 },   /* 가로 형광등 */
-  vbar:   { w: 34,  h: 152 },  /* 세로 형광등 */
-  square: { w: 74,  h: 74 },
-  circle: { w: 74,  h: 74 }
+/* 등 모양과 크기. 편집 툴바에서 고른 모양을 한 번 더 누르면 크기를 고른다. */
+const SIZES = {
+  bar:    { s: { w: 100, h: 22 },  m: { w: 152, h: 34 },  l: { w: 212, h: 46 } },
+  vbar:   { s: { w: 22,  h: 100 }, m: { w: 34,  h: 152 }, l: { w: 46,  h: 212 } },
+  square: { s: { w: 50,  h: 50 },  m: { w: 74,  h: 74 },  l: { w: 102, h: 102 } },
+  circle: { s: { w: 50,  h: 50 },  m: { w: 74,  h: 74 },  l: { w: 102, h: 102 } }
 };
+const SIZE_NAMES = { s: '소', m: '중', l: '대' };
+function sizeOf(shape, key) { return SIZES[shape][key] || SIZES[shape].m; }
 /* 종이는 A4 가로 하나뿐이다.
    A 계열(A5·A4·A3·A2)은 모두 같은 1:√2 모양이라, 이 한 비율로 어떤 크기에 뽑아도 꽉 찬다. */
 const PAPER_H = Math.round(VB_W * 210 / 297);   /* 707 */
@@ -79,7 +82,7 @@ function blankDoc() {
   };
 }
 let doc = blankDoc();
-let ui  = { screen: 'home', tool: 'select', shape: 'bar', sel: null, activeGang: null };
+let ui  = { screen: 'home', tool: 'select', shape: 'bar', size: 'm', sel: null, activeGang: null, guides: [] };
 let undoStack = [];
 
 /* 예전 판으로 저장한 내용도 열리도록 맞춰준다 */
@@ -156,6 +159,50 @@ function paperAspect() { return VB_W / PAPER_H; }
 /* 종이 높이가 고정이라 스위치판을 줄일 일이 없다 */
 function plateScale() { return 1; }
 
+/* ── 줄 맞추기 ──────────────────────────────────────────
+   끌 때 다른 등·스위치판과 줄이 맞으면 살짝 붙고 안내선을 보여준다. */
+const SNAP = 7;                       /* 뷰박스 단위 */
+function nearest(want, cands) {
+  let best = null;
+  cands.forEach(c => {
+    const d = Math.abs(want - c.at);
+    if (d <= SNAP && (!best || d < best.d)) best = { d: d, at: c.at, line: c.line };
+  });
+  return best;
+}
+function snapTo(pt, vx, hy) {
+  const sx = nearest(pt.x, vx), sy = nearest(pt.y, hy), guides = [];
+  if (sx) guides.push({ axis: 'v', at: sx.line });
+  if (sy) guides.push({ axis: 'h', at: sy.line });
+  return { x: sx ? sx.at : pt.x, y: sy ? sy.at : pt.y, guides: guides };
+}
+/* 끄는 등의 중심·양 끝이 다른 등의 중심·양 끝, 방 한가운데와 맞는 자리 */
+function snapLight(l, pt) {
+  const rb = roomBox(), hw = l.w / 2, hh = l.h / 2, vx = [], hy = [];
+  doc.lights.forEach(o => {
+    if (o.id === l.id) return;
+    const ox = rb.x + o.nx * rb.w, oy = rb.y + o.ny * rb.h, ow = o.w / 2, oh = o.h / 2;
+    vx.push({ at: ox, line: ox }, { at: ox - ow + hw, line: ox - ow }, { at: ox + ow - hw, line: ox + ow });
+    hy.push({ at: oy, line: oy }, { at: oy - oh + hh, line: oy - oh }, { at: oy + oh - hh, line: oy + oh });
+  });
+  const cx = rb.x + rb.w / 2, cy = rb.y + rb.h / 2;
+  vx.push({ at: cx, line: cx }); hy.push({ at: cy, line: cy });
+  return snapTo(pt, vx, hy);
+}
+/* 스위치판은 다른 스위치판, 방 한가운데와 맞춘다 */
+function snapSwitch(sw, pt) {
+  const rb = roomBox(), vx = [], hy = [];
+  doc.switches.forEach(o => {
+    if (o.id === sw.id) return;
+    vx.push({ at: o.nx * VB_W, line: o.nx * VB_W });
+    hy.push({ at: o.ny * PAPER_H, line: o.ny * PAPER_H });
+  });
+  const cx = rb.x + rb.w / 2;
+  vx.push({ at: cx, line: cx }, { at: rb.x, line: rb.x }, { at: rb.x + rb.w, line: rb.x + rb.w });
+  hy.push({ at: rb.y + rb.h, line: rb.y + rb.h });
+  return snapTo(pt, vx, hy);
+}
+
 /* ── 조회 헬퍼 ──────────────────────────────────────────── */
 function allGangs() {
   const out = [];
@@ -188,8 +235,7 @@ function dlabel(g) {
 /* ── 변경 동작 ──────────────────────────────────────────── */
 function addLight(nx, ny, shape, size) {
   const sp = shape || ui.shape;
-  /* 크기를 따로 주지 않으면, 같은 모양으로 이미 놓인 등에 맞춘다 */
-  const like = size || doc.lights.filter(l => l.shape === sp).slice(-1)[0] || SHAPES[sp];
+  const like = size || sizeOf(sp, ui.size);
   doc.lights.push({ id: uid(), nx: nx, ny: ny, shape: sp, w: like.w, h: like.h });
 }
 function removeLight(id) {
@@ -218,7 +264,7 @@ function addSwitch(gangCount) {
 function gridPlace(rows, cols, shape) {
   doc.lights = [];
   doc.switches.forEach(sw => sw.gangs.forEach(g => { g.lightIds = []; }));
-  const sp = shape || ui.shape, base = SHAPES[sp], rb = roomBox(), pad = 0.10;
+  const sp = shape || ui.shape, base = sizeOf(sp, ui.size), rb = roomBox(), pad = 0.10;
   /* 등이 빽빽할수록 작게 그린다 — 안 그러면 서로 겹친다 */
   const stepX = cols > 1 ? rb.w * (1 - pad * 2) / (cols - 1) : rb.w * 0.8;
   const stepY = rows > 1 ? rb.h * (1 - pad * 2) / (rows - 1) : rb.h * 0.8;
@@ -406,6 +452,16 @@ function planSVG(forPrint) {
          '" font-size="17" font-weight="700" fill="#222" text-anchor="middle">' + esc(sw.name) + '</text>' +
          '</g>';
   });
+
+  /* 줄 맞춤 안내선 */
+  if (!forPrint && ui.guides.length) {
+    ui.guides.forEach(g => {
+      const c = g.axis === 'v'
+        ? 'x1="' + g.at + '" y1="0" x2="' + g.at + '" y2="' + PAPER_H + '"'
+        : 'x1="0" y1="' + g.at + '" x2="' + VB_W + '" y2="' + g.at + '"';
+      s += '<line ' + c + ' stroke="#e93d82" stroke-width="1.4" stroke-dasharray="7 5"/>';
+    });
+  }
 
   /* 방 손잡이 — 파워포인트처럼 여덟 점으로 크기 조절 */
   if (!forPrint && ui.sel && ui.sel.t === 'room') {
@@ -661,7 +717,16 @@ function bindCanvas() {
       const r0 = drag.room0, dx = (pt.x - drag.p0.x) / VB_W, dy = (pt.y - drag.p0.y) / PH;
 
       if (drag.kind === 'room') {
-        doc.room = { x: clamp(r0.x + dx, 0, 1 - r0.w), y: clamp(r0.y + dy, 0, 1 - r0.h), w: r0.w, h: r0.h };
+        /* 방 한가운데를 종이 한가운데에 맞춰 준다 */
+        const sn = snapTo(
+          { x: (r0.x + dx + r0.w / 2) * VB_W, y: (r0.y + dy + r0.h / 2) * PAPER_H },
+          [{ at: VB_W / 2, line: VB_W / 2 }], [{ at: PAPER_H / 2, line: PAPER_H / 2 }]);
+        ui.guides = sn.guides;
+        doc.room = {
+          x: clamp(sn.x / VB_W - r0.w / 2, 0, 1 - r0.w),
+          y: clamp(sn.y / PAPER_H - r0.h / 2, 0, 1 - r0.h),
+          w: r0.w, h: r0.h
+        };
       } else {
         const d = drag.dir;
         let x = r0.x, y = r0.y, w = r0.w, h = r0.h;
@@ -696,10 +761,20 @@ function bindCanvas() {
     const rb = roomBox();
     if (drag.kind === 'light') {
       const l = doc.lights.filter(x => x.id === drag.id)[0];
-      if (l) { l.nx = clamp((pt.x - rb.x) / rb.w, 0, 1); l.ny = clamp((pt.y - rb.y) / rb.h, 0, 1); }
+      if (l) {
+        const sn = snapLight(l, pt);
+        l.nx = clamp((sn.x - rb.x) / rb.w, 0, 1);
+        l.ny = clamp((sn.y - rb.y) / rb.h, 0, 1);
+        ui.guides = sn.guides;
+      }
     } else {
       const sw = doc.switches.filter(x => x.id === drag.id)[0];
-      if (sw) { sw.nx = clamp(pt.x / VB_W, 0, 1); sw.ny = clamp(pt.y / paperH(), 0, 1); }
+      if (sw) {
+        const sn = snapSwitch(sw, pt);
+        sw.nx = clamp(sn.x / VB_W, 0, 1);
+        sw.ny = clamp(sn.y / PAPER_H, 0, 1);
+        ui.guides = sn.guides;
+      }
     }
     renderPlan();
   });
@@ -707,6 +782,7 @@ function bindCanvas() {
   svg.addEventListener('pointerup', ev => {
     if (!drag) return;
     const d = drag; drag = null;
+    ui.guides = [];
     try { svg.releasePointerCapture(ev.pointerId); } catch (e) {}
 
     if (!d.moved && d.kind === 'light' && ui.activeGang) {
@@ -724,16 +800,55 @@ function bindCanvas() {
 /* ============================================================
    색 고르기
    ============================================================ */
-function closeColorPop() {
-  const el = document.getElementById('color-pop');
+function closePop() {
+  const el = document.getElementById('pop');
   if (el) el.remove();
   document.removeEventListener('pointerdown', onPopOutside, true);
 }
-function onPopOutside(ev) {
-  if (!ev.target.closest('#color-pop')) closeColorPop();
+function onPopOutside(ev) { if (!ev.target.closest('#pop')) closePop(); }
+/* 누른 것 옆에, 화면 밖으로 나가지 않게 띄운다 */
+function openPop(html, anchor) {
+  closePop();
+  const el = document.createElement('div');
+  el.className = 'pop'; el.id = 'pop'; el.innerHTML = html;
+  document.body.appendChild(el);
+  const r = anchor.getBoundingClientRect();
+  el.style.left = clamp(r.right - el.offsetWidth, 8, window.innerWidth - el.offsetWidth - 8) + 'px';
+  el.style.top = (r.bottom + 8 + el.offsetHeight > window.innerHeight
+    ? Math.max(8, r.top - el.offsetHeight - 8) : r.bottom + 8) + 'px';
+  setTimeout(() => document.addEventListener('pointerdown', onPopOutside, true), 0);
+  return el;
 }
+
+/* 등 크기 — 고른 모양을 한 번 더 누르면 나온다 */
+function openSizePop(anchor) {
+  const sp = ui.shape;
+  let html = '<div class="pop-sizes">';
+  ['s', 'm', 'l'].forEach(k => {
+    const z = sizeOf(sp, k);
+    const w = Math.max(5, Math.round(z.w / 5.2)), h = Math.max(5, Math.round(z.h / 5.2));
+    const br = sp === 'circle' ? '50%' : (sp === 'square' ? '3px' : Math.min(w, h) / 2 + 'px');
+    html += '<button class="sz-btn' + (ui.size === k ? ' on' : '') + '" data-sz="' + k + '">' +
+            '<span class="sz-ico"><i style="width:' + w + 'px;height:' + h + 'px;border-radius:' + br + '"></i></span>' +
+            '<span>' + SIZE_NAMES[k] + '</span></button>';
+  });
+  const el = openPop(html + '</div>', anchor);
+  $$('.sz-btn', el).forEach(b => b.onclick = () => {
+    ui.size = b.dataset.sz;
+    applyShapeToSelection();
+    closePop(); render();
+  });
+}
+/* 골라 둔 등이 있으면 모양·크기를 바로 입힌다 */
+function applyShapeToSelection() {
+  if (!ui.sel || ui.sel.t !== 'light') return;
+  const l = doc.lights.filter(x => x.id === ui.sel.id)[0];
+  if (!l) return;
+  const z = sizeOf(ui.shape, ui.size);
+  snapshot(); l.shape = ui.shape; l.w = z.w; l.h = z.h; persist();
+}
+
 function openColorPop(gangId, anchor) {
-  closeColorPop();
   const g = findGang(gangId); if (!g) return;
   snapshot();
 
@@ -743,22 +858,13 @@ function openColorPop(gangId, anchor) {
     sw += '<button class="pop-sw' + (on ? ' on' : '') + '" data-c="' + c + '" style="background:' + c +
           '" title="' + (c === GANG_GRAY ? '색 없음' : c) + '"></button>';
   });
-  const el = document.createElement('div');
-  el.className = 'pop'; el.id = 'color-pop';
-  el.innerHTML = '<div class="pop-grid">' + sw + '</div>' +
+  const el = openPop('<div class="pop-grid">' + sw + '</div>' +
     '<div class="pop-foot"><span>직접 고르기</span>' +
-    '<input type="color" id="pop-custom" value="' + esc(g.color) + '"></div>';
-  document.body.appendChild(el);
-
-  /* 화면 밖으로 나가지 않게 앉힌다 */
-  const r = anchor.getBoundingClientRect();
-  el.style.left = clamp(r.right - el.offsetWidth, 8, window.innerWidth - el.offsetWidth - 8) + 'px';
-  el.style.top = (r.bottom + 8 + el.offsetHeight > window.innerHeight
-    ? Math.max(8, r.top - el.offsetHeight - 8) : r.bottom + 8) + 'px';
+    '<input type="color" id="pop-custom" value="' + esc(g.color) + '"></div>', anchor);
 
   const apply = (c, done) => {
     g.color = c;
-    if (done) { persist(); render(); closeColorPop(); }
+    if (done) { persist(); render(); closePop(); }
     else {
       renderPlan();
       anchor.style.background = c;
@@ -771,8 +877,6 @@ function openColorPop(gangId, anchor) {
   const ci = $('#pop-custom', el);
   ci.oninput = () => apply(ci.value, false);
   ci.onchange = () => apply(ci.value, true);
-
-  setTimeout(() => document.addEventListener('pointerdown', onPopOutside, true), 0);
 }
 
 /* ============================================================
@@ -982,11 +1086,10 @@ function boot() {
     ui.tool = b.dataset.tool; ui.sel = null; render();
   });
   $$('#dock-shapes .shape-btn').forEach(b => b.onclick = () => {
-    ui.shape = b.dataset.shape;
-    if (ui.sel && ui.sel.t === 'light') {
-      const l = doc.lights.filter(x => x.id === ui.sel.id)[0];
-      if (l) { snapshot(); l.shape = ui.shape; l.w = SHAPES[ui.shape].w; l.h = SHAPES[ui.shape].h; persist(); }
-    }
+    const sp = b.dataset.shape;
+    if (sp === ui.shape) { openSizePop(b); return; }   /* 이미 고른 모양을 또 누르면 크기 고르기 */
+    ui.shape = sp;
+    applyShapeToSelection();
     render();
   });
 
@@ -998,7 +1101,7 @@ function boot() {
     if (ui.screen !== 'editor') return;
     const t = e.target.tagName;
     if (t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT') return;
-    if (e.key === 'Escape') { ui.activeGang = null; ui.sel = null; closeModal(); closeColorPop(); render(); }
+    if (e.key === 'Escape') { ui.activeGang = null; ui.sel = null; closeModal(); closePop(); render(); }
     if ((e.key === 'Delete' || e.key === 'Backspace') && ui.sel && ui.sel.t === 'light') {
       e.preventDefault(); snapshot(); removeLight(ui.sel.id); persist(); render();
     }
