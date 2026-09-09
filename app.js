@@ -20,20 +20,24 @@ const VB_W = 1000;
 const STORE = 'switchdeung.doc.v2';
 const FONT  = "'Apple SD Gothic Neo','Malgun Gothic',sans-serif";
 
-/* 흑백 인쇄를 고려해 명도 차이가 큰 색만 고름 */
-const COLORS = [
-  '#e5484d', '#0090ff', '#f76b15', '#30a46c', '#8e4ec6',
-  '#0d9488', '#e93d82', '#a16207', '#3e63dd', '#65a30d'
+const SHAPES = {
+  bar:    { w: 152, h: 34 },   /* 가로 형광등 */
+  vbar:   { w: 34,  h: 152 },  /* 세로 형광등 */
+  square: { w: 74,  h: 74 },
+  circle: { w: 74,  h: 74 }
+};
+/* 종이는 A4 가로 하나뿐이다.
+   A 계열(A5·A4·A3·A2)은 모두 같은 1:√2 모양이라, 이 한 비율로 어떤 크기에 뽑아도 꽉 찬다. */
+const PAPER_H = Math.round(VB_W * 210 / 297);   /* 707 */
+/* 아래쪽은 벽 이름표와 스위치판이 앉을 자리 */
+const BAND = 168, ROOM_TOP = 40;
+
+/* 버튼 색. 처음에는 아무도 고르지 않은 회색이고, 쓰는 사람이 바꾼다. */
+const GANG_GRAY = '#98a1ac';
+const PALETTE = [
+  GANG_GRAY, '#e5484d', '#f76b15', '#a16207', '#65a30d', '#30a46c',
+  '#0d9488',  '#0090ff', '#3e63dd', '#8e4ec6', '#e93d82', '#1f2937'
 ];
-const SHAPES = { bar: { w: 152, h: 34 }, square: { w: 74, h: 74 }, circle: { w: 74, h: 74 } };
-/* 종이는 늘 가로로 눕힌다 */
-const RATIOS = [
-  { id: '16:9', w: 16, h: 9 }, { id: '16:10', w: 16, h: 10 },
-  { id: '4:3', w: 4, h: 3 },   { id: 'A4', w: 297, h: 210 }
-];
-/* 아래쪽은 벽 이름표와 스위치판이 앉을 자리로 비워 둔다 */
-const DEFAULT_ROOM = { x: 0.07, y: 0.07, w: 0.86, h: 0.70 };
-const DEFAULT_PAPER = { id: '4:3', w: 4, h: 3 };
 
 /* 스위치 생김새 — 한국에서 쓰는 것만.
    한국 매입 스위치는 버튼이 위아래로 쌓이고, 4구가 넘으면 두 줄(2연장)이 된다.
@@ -68,8 +72,7 @@ const TEMPLATES = [
 function blankDoc() {
   return {
     title: '', hasBlueprint: false,
-    paper: Object.assign({}, DEFAULT_PAPER),
-    room: Object.assign({}, DEFAULT_ROOM),
+    room: { x: 0.07, y: ROOM_TOP / PAPER_H, w: 0.86, h: (PAPER_H - ROOM_TOP - BAND) / PAPER_H },
     bg: null, bgOpacity: 0.45,
     sides: { top: '', right: '', bottom: '', left: '' },
     lights: [], switches: []
@@ -82,14 +85,24 @@ let undoStack = [];
 /* 예전 판으로 저장한 내용도 열리도록 맞춰준다 */
 function migrate(d) {
   d = Object.assign(blankDoc(), d || {});
-  if (!d.room || typeof d.room.w !== 'number') d.room = Object.assign({}, DEFAULT_ROOM);
-  if (!d.paper || typeof d.paper.w !== 'number') d.paper = Object.assign({}, d.ratio && d.ratio.w ? d.ratio : DEFAULT_PAPER);
-  if (d.paper.h > d.paper.w) { const t = d.paper.w; d.paper.w = d.paper.h; d.paper.h = t; d.paper.id = 'custom'; }
+  if (!d.room || typeof d.room.w !== 'number') d.room = blankDoc().room;
+  /* 종이 비율을 고르던 시절에 저장한 것 — 방과 스위치의 실제 위치를 지키며 A4로 옮긴다 */
+  const old = d.paper || d.ratio;
+  if (old && old.w) {
+    const oldH = clamp(Math.round(VB_W * old.h / old.w), 150, 1600);
+    if (Math.abs(oldH - PAPER_H) > 1) {
+      const k = oldH / PAPER_H;
+      d.room.h = clamp(d.room.h * k, 0.05, 1);
+      d.room.y = clamp(d.room.y * k, 0, 1 - d.room.h);
+      (d.switches || []).forEach(sw => { sw.ny = sw.ny * k; });
+    }
+  }
   (d.switches || []).forEach(sw => {
     sw.style = STYLE_ALIAS[sw.style] || sw.style || 'k-v';
-    if (sw.ny > 1) { sw.nx = clamp(sw.nx, 0.06, 0.94); sw.ny = 0.88; }   // 옛 좌표계
+    if (sw.ny > 1.6) { sw.nx = clamp(sw.nx, 0.06, 0.94); sw.ny = 0.88; }   // 아주 옛 좌표계
+    (sw.gangs || []).forEach(g => { if (!g.color) g.color = GANG_GRAY; });
   });
-  delete d.ratio;
+  delete d.ratio; delete d.paper;
   return d;
 }
 
@@ -118,8 +131,8 @@ function restore() {
 }
 
 /* ── 좌표 ───────────────────────────────────────────────── */
-function vb() { return { W: VB_W, H: paperH() }; }
-function paperH() { return clamp(Math.round(VB_W * doc.paper.h / doc.paper.w), 150, 1000); }
+function vb() { return { W: VB_W, H: PAPER_H }; }
+function paperH() { return PAPER_H; }
 function roomBox() {
   const r = doc.room, H = paperH();
   return { x: r.x * VB_W, y: r.y * H, w: r.w * VB_W, h: r.h * H };
@@ -132,40 +145,16 @@ function toRoomNorm(pt) {
   const rb = roomBox();
   return { nx: clamp((pt.x - rb.x) / rb.w, 0, 1), ny: clamp((pt.y - rb.y) / rb.h, 0, 1) };
 }
-/* 종이 모양을 바꾼다. 방은 실제 크기를 그대로 지키고 종이만 달라진다. */
-function setPaper(aw, ah, id) {
-  const oldH = paperH(), r = doc.room;
-  const pxW = r.w * VB_W, pxH = r.h * oldH;           /* 방의 실제 크기 */
-  const cx = (r.x + r.w / 2) * VB_W, cy = (r.y + r.h / 2) * oldH;
-  const swY = doc.switches.map(sw => sw.ny * oldH);   /* 스위치판도 제자리에 둔다 */
-  /* 종이는 늘 가로로 눕힌다 */
-  if (ah > aw) { const t = aw; aw = ah; ah = t; }
-  /* 고른 값이 정해진 비율과 같으면 그 이름을 그대로 쓴다 */
-  const hit = RATIOS.filter(r => Math.abs(aw / ah - r.w / r.h) / (r.w / r.h) < 0.015)[0];
-  doc.paper = { id: id || (hit ? hit.id : 'custom'), w: aw, h: ah };
-  const newH = paperH();
-  const w = Math.min(pxW, VB_W * 0.98) / VB_W, h = Math.min(pxH, newH * 0.98) / newH;
-  doc.room = {
-    x: clamp(cx / VB_W - w / 2, 0, 1 - w),
-    y: clamp(cy / newH - h / 2, 0, 1 - h),        /* 실제 위치를 지킨다 */
-    w: w, h: h
-  };
-  /* 종이를 여러 번 바꿔도 제자리로 돌아오도록 자르지 않고 그대로 둔다 (그릴 때 가둔다) */
-  doc.switches.forEach((sw, i) => { sw.ny = swY[i] / newH; });
+/* 방을 주어진 가로:세로 모양으로 종이 안에 앉힌다. 아래쪽은 스위치판 자리로 남긴다. */
+function placeRoom(aw, ah) {
+  const maxW = VB_W * 0.88, maxH = PAPER_H - ROOM_TOP - BAND;
+  let w = maxW, h = w * ah / aw;
+  if (h > maxH) { h = maxH; w = h * aw / ah; }
+  doc.room = { x: 0.5 - (w / VB_W) / 2, y: ROOM_TOP / PAPER_H, w: w / VB_W, h: h / PAPER_H };
 }
-/* 방을 종이 안에 앉힌다. 아래쪽은 스위치판 자리로 실제 높이만큼 남긴다.
-   비율로 남기면 복도처럼 납작한 종이에서 자리가 모자란다. */
-function fitRoomToPaper() {
-  const H = paperH();
-  const band = Math.min(H * 0.5, 168);
-  const top = Math.max(10, H * 0.07);
-  const h = Math.max(H * 0.28, H - top - band);
-  doc.room = { x: 0.07, y: top / H, w: 0.86, h: h / H };
-}
-/* 종이가 낮으면 스위치판도 함께 줄여 방 밖에 머물게 한다 */
-function plateScale() { return clamp(paperH() / 560, 0.55, 1); }
-function roomAspect() { const rb = roomBox(); return rb.w / rb.h; }
-function paperAspect() { return VB_W / paperH(); }
+function paperAspect() { return VB_W / PAPER_H; }
+/* 종이 높이가 고정이라 스위치판을 줄일 일이 없다 */
+function plateScale() { return 1; }
 
 /* ── 조회 헬퍼 ──────────────────────────────────────────── */
 function allGangs() {
@@ -177,11 +166,6 @@ function gangsOf(lightId) {
   return allGangs().filter(p => p.g.lightIds.indexOf(lightId) >= 0).map(p => p.g);
 }
 function findGang(id) { const h = allGangs().filter(p => p.g.id === id)[0]; return h ? h.g : null; }
-function nextColor() {
-  const used = allGangs().map(p => p.g.color);
-  for (let i = 0; i < COLORS.length; i++) if (used.indexOf(COLORS[i]) < 0) return COLORS[i];
-  return COLORS[used.length % COLORS.length];
-}
 function inkOn(hex) {
   const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
   return (0.299 * r + 0.587 * g + 0.114 * b) > 165 ? '#14161a' : '#ffffff';
@@ -215,7 +199,7 @@ function removeLight(id) {
 }
 function newGang(sw, idx) {
   return { id: uid(), label: String((idx == null ? sw.gangs.length : idx) + 1),
-           color: nextColor(), desc: '', lightIds: [] };
+           color: GANG_GRAY, desc: '', lightIds: [] };
 }
 function addSwitch(gangCount) {
   const n = doc.switches.length;
@@ -242,13 +226,19 @@ function gridPlace(rows, cols, shape) {
   if (sp === 'bar') {
     const w = clamp(stepX * 0.82, 46, base.w);
     size = { w: w, h: clamp(w * 0.22, 15, base.h) };
+  } else if (sp === 'vbar') {
+    const h = clamp(stepY * 0.82, 46, base.h);
+    size = { w: clamp(h * 0.22, 15, base.w), h: h };
   } else {
     const d = clamp(Math.min(stepX, stepY) * 0.62, 26, base.w);
     size = { w: d, h: d };
   }
+  /* 등이 방 테두리를 넘지 않도록 등 크기만큼 여백을 더 준다 */
+  const padX = Math.max(pad, (size.w / 2 + 6) / rb.w);
+  const padY = Math.max(pad, (size.h / 2 + 6) / rb.h);
   for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-    addLight(cols === 1 ? 0.5 : pad + (c / (cols - 1)) * (1 - pad * 2),
-             rows === 1 ? 0.5 : pad + (r / (rows - 1)) * (1 - pad * 2), sp, size);
+    addLight(cols === 1 ? 0.5 : padX + (c / (cols - 1)) * (1 - padX * 2),
+             rows === 1 ? 0.5 : padY + (r / (rows - 1)) * (1 - padY * 2), sp, size);
   }
 }
 
@@ -381,12 +371,13 @@ function planSVG(forPrint) {
       shp = '<ellipse cx="' + cx + '" cy="' + cy + '" rx="' + (l.w / 2) + '" ry="' + (l.h / 2) +
             '" fill="' + fill + '" stroke="' + stroke + '" stroke-width="' + sw + '"/>';
     } else {
-      const rx = l.shape === 'bar' ? l.h / 2 : 8;
+      const rx = l.shape === 'bar' ? l.h / 2 : (l.shape === 'vbar' ? l.w / 2 : 8);
       shp = '<rect x="' + (cx - l.w / 2) + '" y="' + (cy - l.h / 2) + '" width="' + l.w + '" height="' + l.h +
             '" rx="' + rx + '" fill="' + fill + '" stroke="' + stroke + '" stroke-width="' + sw + '"/>';
     }
-    let fs = l.shape === 'bar' ? 21 : 26;
-    if (txt.length > 3) fs = Math.max(13, fs - (txt.length - 3) * 3);
+    /* 글자가 등 밖으로 삐져나오지 않게 폭에 맞춰 줄인다 */
+    let fs = l.shape === 'bar' ? 21 : (l.shape === 'vbar' ? 19 : 26);
+    if (txt) fs = clamp(Math.min(fs, (l.w - 8) / (txt.length * 0.60)), 9, fs);
     const label = txt
       ? '<text font-family="' + FONT + '" x="' + cx + '" y="' + (cy + fs * 0.35) + '" font-size="' + fs +
         '" font-weight="800" fill="' + inkOn(fill) + '" text-anchor="middle">' + esc(txt) + '</text>'
@@ -451,16 +442,6 @@ function renderPlan() {
 /* ============================================================
    그리기 — 상단 · 독 · 안내 배너
    ============================================================ */
-function renderRatios() {
-  const a = paperAspect();
-  const hit = r => Math.abs(a - r.w / r.h) / (r.w / r.h) < 0.015;
-  let h = '';
-  RATIOS.forEach(r => {
-    h += '<button class="tb-btn' + (hit(r) ? ' on' : '') + '" data-ratio="' + r.id + '">' + esc(r.id) + '</button>';
-  });
-  h += '<button class="tb-btn' + (RATIOS.some(hit) ? '' : ' on') + '" data-ratio="custom">사용자 지정</button>';
-  $('#ratio-group').innerHTML = h;
-}
 function renderDock() {
   $$('#dock .dock-btn[data-tool]').forEach(b => b.classList.toggle('on', b.dataset.tool === ui.tool));
   $$('#dock-shapes .shape-btn').forEach(b => b.classList.toggle('on', b.dataset.shape === ui.shape));
@@ -519,6 +500,8 @@ function renderPanel() {
            esc(dlabel(g)) + '</button>' +
            '<input class="gang-desc" data-gang-desc="' + g.id + '" value="' + esc(g.desc) + '" maxlength="22" placeholder="예) 칠판 쪽">' +
            '<span class="gang-cnt">' + g.lightIds.length + '개</span>' +
+           '<button class="swatch" data-act="pick-color" data-id="' + g.id + '" ' +
+           'style="background:' + g.color + '" title="색 고르기"></button>' +
            '<button class="icon-x" data-act="del-gang" data-id="' + g.id + '" title="버튼 삭제">✕</button>' +
            '</div>';
     });
@@ -572,6 +555,7 @@ function bindPanel() {
         if (ui.activeGang === id) ui.activeGang = null;
       }
       else if (act === 'pick-gang') { ui.activeGang = ui.activeGang === id ? null : id; }
+      else if (act === 'pick-color') { openColorPop(id, btn); return; }
       else if (act === 'del-bg') { snapshot(); doc.bg = null; }
       persist(); render();
     };
@@ -603,7 +587,7 @@ function bindPanel() {
     rd.onload = () => {
       snapshot(); doc.bg = rd.result;
       const img = new Image();
-      img.onload  = () => { setPaper(img.naturalWidth, img.naturalHeight); fitRoomToPaper(); persist(); render(); };
+      img.onload  = () => { placeRoom(img.naturalWidth, img.naturalHeight); persist(); render(); };
       img.onerror = () => { persist(); render(); };
       img.src = rd.result;
     };
@@ -613,7 +597,7 @@ function bindPanel() {
   if (op) op.oninput = () => { doc.bgOpacity = op.value / 100; persist(); renderPlan(); };
 }
 
-function render() { renderRatios(); renderPlan(); renderPanel(); renderDock(); renderHint(); }
+function render() { renderPlan(); renderPanel(); renderDock(); renderHint(); }
 
 /* ============================================================
    캔버스 조작
@@ -738,6 +722,60 @@ function bindCanvas() {
 }
 
 /* ============================================================
+   색 고르기
+   ============================================================ */
+function closeColorPop() {
+  const el = document.getElementById('color-pop');
+  if (el) el.remove();
+  document.removeEventListener('pointerdown', onPopOutside, true);
+}
+function onPopOutside(ev) {
+  if (!ev.target.closest('#color-pop')) closeColorPop();
+}
+function openColorPop(gangId, anchor) {
+  closeColorPop();
+  const g = findGang(gangId); if (!g) return;
+  snapshot();
+
+  let sw = '';
+  PALETTE.forEach(c => {
+    const on = c.toLowerCase() === String(g.color).toLowerCase();
+    sw += '<button class="pop-sw' + (on ? ' on' : '') + '" data-c="' + c + '" style="background:' + c +
+          '" title="' + (c === GANG_GRAY ? '색 없음' : c) + '"></button>';
+  });
+  const el = document.createElement('div');
+  el.className = 'pop'; el.id = 'color-pop';
+  el.innerHTML = '<div class="pop-grid">' + sw + '</div>' +
+    '<div class="pop-foot"><span>직접 고르기</span>' +
+    '<input type="color" id="pop-custom" value="' + esc(g.color) + '"></div>';
+  document.body.appendChild(el);
+
+  /* 화면 밖으로 나가지 않게 앉힌다 */
+  const r = anchor.getBoundingClientRect();
+  el.style.left = clamp(r.right - el.offsetWidth, 8, window.innerWidth - el.offsetWidth - 8) + 'px';
+  el.style.top = (r.bottom + 8 + el.offsetHeight > window.innerHeight
+    ? Math.max(8, r.top - el.offsetHeight - 8) : r.bottom + 8) + 'px';
+
+  const apply = (c, done) => {
+    g.color = c;
+    if (done) { persist(); render(); closeColorPop(); }
+    else {
+      renderPlan();
+      anchor.style.background = c;
+      const btn = document.querySelector('[data-act="pick-gang"][data-id="' + g.id + '"]');
+      if (btn) { btn.style.background = c; btn.style.color = inkOn(c); }
+      $$('.pop-sw', el).forEach(b => b.classList.toggle('on', b.dataset.c.toLowerCase() === c.toLowerCase()));
+    }
+  };
+  $$('.pop-sw', el).forEach(b => b.onclick = () => apply(b.dataset.c, true));
+  const ci = $('#pop-custom', el);
+  ci.oninput = () => apply(ci.value, false);
+  ci.onchange = () => apply(ci.value, true);
+
+  setTimeout(() => document.addEventListener('pointerdown', onPopOutside, true), 0);
+}
+
+/* ============================================================
    모달
    ============================================================ */
 function openModal(html, onMount) {
@@ -767,7 +805,7 @@ function openTemplateModal() {
     $$('[data-tpl]', m).forEach(b => b.onclick = () => {
       const t = TEMPLATES.filter(x => x.id === b.dataset.tpl)[0];
       snapshot();
-      setPaper(t.ratio[0], t.ratio[1]); fitRoomToPaper();
+      placeRoom(t.ratio[0], t.ratio[1]);
       doc.sides = Object.assign({ top: '', right: '', bottom: '', left: '' }, t.sides);
       doc.switches = [];
       ui.shape = t.shape;
@@ -794,20 +832,6 @@ function openGridModal() {
       const c = clamp(parseInt($('#g-cols', m).value, 10) || 1, 1, 20);
       const r = clamp(parseInt($('#g-rows', m).value, 10) || 1, 1, 20);
       snapshot(); gridPlace(r, c, ui.shape); persist(); render(); closeModal();
-    };
-  });
-}
-
-function openRatioModal() {
-  openModal('<h3>종이 비율 직접 넣기</h3><p class="m-sub">안내판을 그릴 종이의 가로·세로 비율을 넣으세요. 종이는 늘 가로로 눕혀 그립니다. 방 크기는 그대로 두고 종이만 달라집니다.</p>' +
-    '<div class="num-row"><label>가로</label><input type="number" id="r-w" min="1" max="9999" value="' + doc.paper.w + '"></div>' +
-    '<div class="num-row"><label>세로</label><input type="number" id="r-h" min="1" max="9999" value="' + doc.paper.h + '"></div>' +
-    '<div class="modal-row"><button class="m-btn" data-close>취소</button>' +
-    '<button class="m-btn primary" id="r-ok">적용</button></div>', m => {
-    $('#r-ok', m).onclick = () => {
-      const w = clamp(parseInt($('#r-w', m).value, 10) || 4, 1, 9999);
-      const h = clamp(parseInt($('#r-h', m).value, 10) || 3, 1, 9999);
-      snapshot(); setPaper(w, h); persist(); render(); closeModal();
     };
   });
 }
@@ -935,7 +959,7 @@ function boot() {
     const yes = b.dataset.blueprint === 'yes';
     doc = blankDoc(); doc.hasBlueprint = yes; undoStack = [];
     ui.sel = null; ui.activeGang = null;
-    if (!yes) { setPaper(4, 3, '4:3'); fitRoomToPaper(); gridPlace(3, 3, 'bar'); doc.sides.top = '칠판 (앞쪽)'; }
+    if (!yes) { placeRoom(4, 3); gridPlace(3, 3, 'bar'); doc.sides.top = '칠판 (앞쪽)'; }
     persist(); go('editor');
     if (!yes) setTimeout(openTemplateModal, 220);
   });
@@ -952,13 +976,6 @@ function boot() {
       try { window.print(); } catch (e) {}
       if (EMBEDDED) toast('인쇄 창이 뜨지 않으면, 이 페이지를 새 탭에서 연 뒤 다시 눌러주세요.');
     }, 60);
-  };
-
-  $('#ratio-group').onclick = e => {
-    const b = e.target.closest('[data-ratio]'); if (!b) return;
-    if (b.dataset.ratio === 'custom') { openRatioModal(); return; }
-    const r = RATIOS.filter(x => x.id === b.dataset.ratio)[0];
-    snapshot(); setPaper(r.w, r.h, r.id); persist(); render();
   };
 
   $$('#dock .dock-btn[data-tool]').forEach(b => b.onclick = () => {
@@ -981,7 +998,7 @@ function boot() {
     if (ui.screen !== 'editor') return;
     const t = e.target.tagName;
     if (t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT') return;
-    if (e.key === 'Escape') { ui.activeGang = null; ui.sel = null; closeModal(); render(); }
+    if (e.key === 'Escape') { ui.activeGang = null; ui.sel = null; closeModal(); closeColorPop(); render(); }
     if ((e.key === 'Delete' || e.key === 'Backspace') && ui.sel && ui.sel.t === 'light') {
       e.preventDefault(); snapshot(); removeLight(ui.sel.id); persist(); render();
     }
