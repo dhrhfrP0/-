@@ -673,16 +673,23 @@ function bindPanel() {
   };
   const op = $('#bg-op', p);
   if (op) {
-    /* 사진도 숫자도 끄는 즉시 따라오게 한다.
-       패널을 다시 그리면 숫자가 손을 뗄 때까지 옛 값에 머물러 있었다. */
+    /* 끄는 내내 숫자와 사진이 같이 따라오게 한다.
+       숫자는 곧바로 고쳐 쓰고, 사진은 한 프레임에 한 번만 고쳐
+       손가락을 빨리 움직여도 일이 밀리지 않게 한다. */
     const val = $('#bg-op-val', p);
-    op.oninput = () => {
-      doc.bgOpacity = op.value / 100;
-      if (val) val.textContent = op.value;
-      const im = document.getElementById('bg-img');
-      if (im) im.setAttribute('opacity', doc.bgOpacity); else renderPlan();
-    };
-    op.onchange = () => persist();   /* 화면은 이미 맞으니 저장만 한다 */
+    let raf = 0;
+    op.addEventListener('input', () => {
+      const v = +op.value;
+      doc.bgOpacity = v / 100;
+      if (val) val.textContent = v;
+      if (!raf) raf = requestAnimationFrame(() => {
+        raf = 0;
+        const im = document.getElementById('bg-img');
+        /* style 쪽이 attribute보다 다시 칠하는 비용이 적다 */
+        if (im) im.style.opacity = doc.bgOpacity; else renderPlan();
+      });
+    });
+    op.addEventListener('change', () => persist());   /* 화면은 이미 맞으니 저장만 */
   }
 }
 
@@ -837,31 +844,34 @@ function bindCanvas() {
    그대로 두면 끌 때 버벅이고, 브라우저 저장 공간(5MB)도 넘겨 작업이
    저장되지 않는다. 그래서 받자마자 줄여서 담는다. */
 const BG_MAX = 1600;
+function shrinkBlueprint(url, cb) {
+  const img = new Image();
+  img.onload = () => {
+    const long = Math.max(img.naturalWidth, img.naturalHeight);
+    if (long <= BG_MAX) { cb(url, img); return; }
+    const k = BG_MAX / long;
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.naturalWidth * k);
+    c.height = Math.round(img.naturalHeight * k);
+    const g = c.getContext('2d');
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, c.width, c.height);   /* 투명 배경이 검게 나오지 않도록 */
+    g.drawImage(img, 0, 0, c.width, c.height);
+    let out = url;
+    try { out = c.toDataURL('image/jpeg', 0.85); } catch (e) {}
+    cb(out, img);
+  };
+  img.onerror = () => cb(null, null);
+  img.src = url;
+}
 function loadBlueprint(file) {
   const rd = new FileReader();
-  rd.onload = () => {
-    const img = new Image();
-    img.onload = () => {
-      const long = Math.max(img.naturalWidth, img.naturalHeight);
-      let url = rd.result;
-      if (long > BG_MAX) {
-        const k = BG_MAX / long;
-        const c = document.createElement('canvas');
-        c.width = Math.round(img.naturalWidth * k);
-        c.height = Math.round(img.naturalHeight * k);
-        const g = c.getContext('2d');
-        g.fillStyle = '#ffffff'; g.fillRect(0, 0, c.width, c.height);   /* 투명 배경이 검게 나오지 않도록 */
-        g.drawImage(img, 0, 0, c.width, c.height);
-        try { url = c.toDataURL('image/jpeg', 0.85); } catch (e) {}
-      }
-      snapshot();
-      doc.bg = url;
-      placeRoom(img.naturalWidth, img.naturalHeight);
-      persist(); render();
-    };
-    img.onerror = () => alert('이미지를 읽을 수 없습니다. 다른 파일로 해보세요.');
-    img.src = rd.result;
-  };
+  rd.onload = () => shrinkBlueprint(rd.result, (url, img) => {
+    if (!url) { alert('이미지를 읽을 수 없습니다. 다른 파일로 해보세요.'); return; }
+    snapshot();
+    doc.bg = url;
+    placeRoom(img.naturalWidth, img.naturalHeight);
+    persist(); render();
+  });
   rd.readAsDataURL(file);
 }
 
@@ -1181,7 +1191,17 @@ function boot() {
 
   bindCanvas();
 
-  if (had && (doc.lights.length || doc.switches.length)) go('editor');
+  /* 줄이기 전 판에서 담긴 사진은 열 때 한 번 줄인다.
+     용량이 작아도 4000px짜리면 다시 칠할 때마다 비싸므로, 그림의 실제 크기로 판단한다. */
+  if (doc.bg) {
+    shrinkBlueprint(doc.bg, url => {
+      if (!url || url === doc.bg) return;
+      doc.bg = url; persist();
+      if (ui.screen === 'editor') renderPlan();
+    });
+  }
+
+  if (had && (doc.lights.length || doc.switches.length || doc.bg)) go('editor');
   else go('home');
 }
 
