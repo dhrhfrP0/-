@@ -89,7 +89,8 @@ input{font-family:inherit}
 
 .stage{flex:1 1 auto;position:relative;display:grid;place-items:center;padding:28px 28px 96px;
   min-width:0;overflow:auto}
-.paper{position:relative;width:100%;max-width:100%;max-height:100%;
+/* 세로로 긴 A4 한 장이라 높이를 기준으로 맞춰야 화면에 다 들어온다 */
+.paper{position:relative;width:auto;height:100%;max-width:100%;max-height:100%;
   background:#fff;box-shadow:var(--shadow);border-radius:2px}
 #plan{display:block;width:100%;height:100%;touch-action:none;user-select:none}
 .hint{position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:5;
@@ -229,31 +230,13 @@ input{font-family:inherit}
 #print-root{display:none}
 @media print{
   body{overflow:visible;background:#fff}
-  .shell,.screen,.dock,.modal-back,.toast{display:none!important}
+  .shell,.screen,.dock,.modal-back,.toast,.pop{display:none!important}
   #print-root{display:block}
-  .sheet{page-break-after:always}
-  .sheet:last-child{page-break-after:auto}
+  @page{size:A4 portrait;margin:0}
 }
-.sheet{font-family:var(--font);color:#000;padding:0}
-.sheet-head{display:flex;align-items:flex-end;justify-content:space-between;
-  gap:16px;padding-bottom:8px;margin-bottom:14px;border-bottom:2.5px solid #000}
-.sheet-head h1{margin:0;font-size:26px;font-weight:800;letter-spacing:-.02em;line-height:1.2}
-.sheet-head .sh-tag{font-size:11px;font-weight:700;letter-spacing:.06em;color:#555;white-space:nowrap}
-.sheet-plan{margin-bottom:14px;text-align:center}
-.sheet-plan svg{display:block;margin:0 auto;height:auto;border:1.5px solid #000}
-.lg-title{margin:0 0 9px;font-size:13px;font-weight:800;letter-spacing:.06em}
-.lg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
-.lg-sw{border:1.5px solid #000;border-radius:6px;overflow:hidden;break-inside:avoid}
-.lg-sw-name{padding:6px 10px;font-size:13px;font-weight:800;background:#000;color:#fff}
-.lg-sw-body{display:flex;gap:12px;padding:10px}
-.lg-plate{flex:0 0 auto;height:auto;align-self:flex-start}
-.lg-list{flex:1;margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:5px}
-.lg-list li{display:flex;align-items:baseline;gap:7px;font-size:12px;line-height:1.45}
-.lg-dot{flex:0 0 auto;width:11px;height:11px;border-radius:3px;border:1px solid #0003;position:relative;top:1px}
-.lg-list b{font-weight:800}
-.lg-list span{color:#333}
-.sheet-foot{margin-top:14px;padding-top:8px;border-top:1px solid #999;
-  font-size:10px;color:#666;display:flex;justify-content:space-between;gap:12px}
+/* 화면에서 보던 A4 한 장이 그대로 종이가 된다 */
+.sheet{width:210mm;height:297mm}
+.sheet svg{display:block;width:100%;height:100%}
 
 /* 좁은 화면 — 도면을 위, 설정을 아래로 쌓고 툴바를 흐름 안에 둔다 */
 @media (max-width:900px){
@@ -261,7 +244,7 @@ input{font-family:inherit}
   .tb-title{flex:1 1 100%}
   .tb-spacer{display:none}
   .workspace{flex-direction:column}
-  .stage{flex:0 0 auto;min-height:44vh;padding:16px}
+  .stage{flex:0 0 auto;min-height:54vh;padding:14px}
   .panel{flex:1 1 auto;border-left:0;border-top:1px solid var(--line)}
   .dock{position:static;transform:none;margin:8px auto 10px;
         max-width:calc(100% - 20px);overflow-x:auto;border-radius:14px}
