@@ -38,10 +38,8 @@ const M = 42;                                   /* 종이 안쪽 여백 */
 const TITLE_H = 140;                            /* 제목 칸 아래 경계 */
 const ROOM_BOTTOM = 810;                        /* 방 칸 아래 경계 */
 const MAX_SWITCHES = 4;
-const FOOT_H = 34;                              /* 맨 아래 사이트 주소 자리 */
-const SITE = 'dhrhfrp0.github.io/switch-light';
 function roomBand() { return { x: M, y: TITLE_H, w: VB_W - M * 2, h: ROOM_BOTTOM - TITLE_H }; }
-function switchBand() { return { x: M, y: ROOM_BOTTOM, w: VB_W - M * 2, h: PAPER_H - M - FOOT_H - ROOM_BOTTOM }; }
+function switchBand() { return { x: M, y: ROOM_BOTTOM, w: VB_W - M * 2, h: PAPER_H - M - ROOM_BOTTOM }; }
 /* 스위치는 개수에 맞춰 칸을 나눈다 */
 function switchCells(n) {
   const b = switchBand(), cols = n <= 1 ? 1 : 2, rows = Math.ceil(n / cols);
@@ -507,10 +505,6 @@ function planSVG(forPrint) {
            '" stroke="#d7dade" stroke-width="1.4"/>';
     }
   }
-
-  /* 맨 아래 사이트 주소 */
-  s += '<text font-family="' + FONT + '" x="' + (VB_W / 2) + '" y="' + (PAPER_H - 20) +
-       '" font-size="15" fill="#a6abb3" text-anchor="middle">' + SITE + '</text>';
 
   /* 줄 맞춤 안내선 */
   if (!forPrint && ui.guides.length) {
@@ -1210,98 +1204,6 @@ function toast(msg) {
   setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 400); }, 6000);
 }
 
-/* ── PDF 직접 만들기 ────────────────────────────────────
-   브라우저 인쇄를 거치면 주소·날짜·페이지 번호가 자동으로 붙는데,
-   iOS에서는 그것을 끌 방법이 없다. 그래서 종이 한 장을 그대로 그려
-   PDF를 손수 만들어 내려받는다. 붙는 글자가 하나도 없다. */
-const PDF_DPI = 200;
-function pageSVGString() {
-  return '<svg xmlns="http://www.w3.org/2000/svg" width="' + VB_W + '" height="' + PAPER_H +
-         '" viewBox="0 0 ' + VB_W + ' ' + PAPER_H + '">' +
-         '<rect width="' + VB_W + '" height="' + PAPER_H + '" fill="#ffffff"/>' +
-         bgSVG() + planSVG(true) + '</svg>';
-}
-/* 낱장 PDF 한 개를 바이트로 짠다 (그림 하나를 A4에 꽉 채운 형태) */
-function makePdf(jpeg, pxW, pxH) {
-  const PT_W = 595.28, PT_H = 841.89;           /* A4, 1/72인치 단위 */
-  const parts = [], offsets = [];
-  let len = 0;
-  const put = x => {
-    const b = typeof x === 'string' ? Uint8Array.from(x, c => c.charCodeAt(0) & 0xff) : x;
-    parts.push(b); len += b.length;
-  };
-  const obj = (n, body, extra) => {
-    offsets[n] = len;
-    put(n + ' 0 obj\n' + body + '\n');
-    if (extra) { put('stream\n'); put(extra); put('\nendstream\n'); }
-    put('endobj\n');
-  };
-  put('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n');
-  obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
-  obj(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
-  obj(3, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + PT_W + ' ' + PT_H +
-         '] /Resources << /XObject << /Im0 5 0 R >> >> /Contents 4 0 R >>');
-  const content = 'q ' + PT_W + ' 0 0 ' + PT_H + ' 0 0 cm /Im0 Do Q';
-  obj(4, '<< /Length ' + content.length + ' >>', content);
-  obj(5, '<< /Type /XObject /Subtype /Image /Width ' + pxW + ' /Height ' + pxH +
-         ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + jpeg.length + ' >>', jpeg);
-  const xref = len;
-  let t = 'xref\n0 6\n0000000000 65535 f \n';
-  for (let i = 1; i <= 5; i++) t += String(offsets[i]).padStart(10, '0') + ' 00000 n \n';
-  put(t);
-  put('trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF\n');
-
-  const out = new Uint8Array(len);
-  let at = 0;
-  parts.forEach(b => { out.set(b, at); at += b.length; });
-  return out;
-}
-/* 아이폰·아이패드는 "누른 직후"가 아니면 내려받기를 막는다.
-   PDF를 만드는 데 시간이 걸리니, 다 만든 뒤 누를 수 있는 단추를 내어
-   그 누름으로 받게 한다. 미리보기도 함께 보여준다. */
-let pdfUrl = null;
-function savePdf() {
-  const pxW = Math.round(210 / 25.4 * PDF_DPI);
-  const pxH = Math.round(pxW * PAPER_H / VB_W);
-  const name = (doc.title.trim() || '조명안내판') + '.pdf';
-
-  openModal('<h3>PDF 만드는 중…</h3><p class="m-sub">잠시만요.</p>');
-
-  const fail = () => openModal('<h3>PDF를 만들지 못했습니다</h3>' +
-    '<p class="m-sub">대신 <b>인쇄</b> 버튼으로 뽑을 수 있습니다. 다만 브라우저가 주소와 날짜를 함께 붙입니다.</p>' +
-    '<div class="modal-row"><button class="m-btn primary" data-close>닫기</button></div>');
-
-  const img = new Image();
-  img.onload = () => {
-    try {
-      const c = document.createElement('canvas');
-      c.width = pxW; c.height = pxH;
-      const g = c.getContext('2d');
-      g.fillStyle = '#ffffff'; g.fillRect(0, 0, pxW, pxH);
-      g.drawImage(img, 0, 0, pxW, pxH);
-      const url = c.toDataURL('image/jpeg', 0.94);
-      const bin = atob(url.split(',')[1]), jpeg = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) jpeg[i] = bin.charCodeAt(i);
-
-      if (pdfUrl) URL.revokeObjectURL(pdfUrl);
-      pdfUrl = URL.createObjectURL(new Blob([makePdf(jpeg, pxW, pxH)], { type: 'application/pdf' }));
-
-      openModal('<h3>PDF가 준비됐습니다</h3>' +
-        '<p class="m-sub">' + esc(name) + '</p>' +
-        '<img class="pdf-preview" src="' + url + '" alt="">' +
-        (EMBEDDED
-          ? '<div class="note">지금 화면은 내려받기가 막혀 있습니다. 이 페이지를 새 탭에서 열고 다시 눌러주세요.</div>'
-          : '<div class="note">아이폰·아이패드는 <b>파일</b> 앱에 저장됩니다.</div>') +
-        '<div class="modal-row"><button class="m-btn" data-close>닫기</button>' +
-        '<a class="m-btn primary" id="pdf-get" href="' + pdfUrl + '" download="' +
-          esc(name.replace(/[\\/:*?"<>|]/g, '')) + '">내려받기</a></div>',
-        m => { const a = $('#pdf-get', m); if (a) a.addEventListener('click', () => setTimeout(closeModal, 400)); });
-    } catch (e) { fail(); }
-  };
-  img.onerror = fail;
-  img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(pageSVGString());
-}
-
 /* 화면에서 보는 것이 그대로 한 장이다. 덧붙이는 머리말·꼬리말이 없다. */
 function buildPrintSheet() {
   document.getElementById('print-root').innerHTML =
@@ -1373,7 +1275,6 @@ function boot() {
   $('#btn-save-file').onclick = saveFile;
   $('#btn-grid').onclick = openGridModal;
   $('#btn-undo').onclick = undo;
-  $('#btn-pdf').onclick = savePdf;
   $('#btn-print').onclick = () => {
     buildPrintSheet();
     setTimeout(() => {
