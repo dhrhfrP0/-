@@ -601,7 +601,7 @@ function renderPanel() {
     h += '<div class="sec"><div class="sec-h"><span>평면도 이미지</span></div>' +
          '<div class="field"><input type="file" id="bg-file" accept="image/*"></div>';
     if (doc.bg) {
-      h += '<div class="field"><label>진하기 ' + Math.round(doc.bgOpacity * 100) + '%</label>' +
+      h += '<div class="field"><label>진하기 <b id="bg-op-val">' + Math.round(doc.bgOpacity * 100) + '</b>%</label>' +
            '<input type="range" id="bg-op" min="10" max="100" value="' + Math.round(doc.bgOpacity * 100) + '"></div>' +
            '<button class="mini" data-act="del-bg" style="align-self:flex-start">이미지 지우기</button>';
     }
@@ -673,13 +673,16 @@ function bindPanel() {
   };
   const op = $('#bg-op', p);
   if (op) {
-    /* 사진을 다시 만들지 않고 투명도만 고친다 */
+    /* 사진도 숫자도 끄는 즉시 따라오게 한다.
+       패널을 다시 그리면 숫자가 손을 뗄 때까지 옛 값에 머물러 있었다. */
+    const val = $('#bg-op-val', p);
     op.oninput = () => {
       doc.bgOpacity = op.value / 100;
+      if (val) val.textContent = op.value;
       const im = document.getElementById('bg-img');
       if (im) im.setAttribute('opacity', doc.bgOpacity); else renderPlan();
     };
-    op.onchange = () => { persist(); render(); };
+    op.onchange = () => persist();   /* 화면은 이미 맞으니 저장만 한다 */
   }
 }
 
