@@ -38,8 +38,10 @@ const M = 42;                                   /* 종이 안쪽 여백 */
 const TITLE_H = 140;                            /* 제목 칸 아래 경계 */
 const ROOM_BOTTOM = 810;                        /* 방 칸 아래 경계 */
 const MAX_SWITCHES = 4;
+const FOOT_H = 34;                              /* 맨 아래 사이트 주소 자리 */
+const SITE = 'dhrhfrp0.github.io/switch-light';
 function roomBand() { return { x: M, y: TITLE_H, w: VB_W - M * 2, h: ROOM_BOTTOM - TITLE_H }; }
-function switchBand() { return { x: M, y: ROOM_BOTTOM, w: VB_W - M * 2, h: PAPER_H - M - ROOM_BOTTOM }; }
+function switchBand() { return { x: M, y: ROOM_BOTTOM, w: VB_W - M * 2, h: PAPER_H - M - FOOT_H - ROOM_BOTTOM }; }
 /* 스위치는 개수에 맞춰 칸을 나눈다 */
 function switchCells(n) {
   const b = switchBand(), cols = n <= 1 ? 1 : 2, rows = Math.ceil(n / cols);
@@ -506,6 +508,10 @@ function planSVG(forPrint) {
     }
   }
 
+  /* 맨 아래 사이트 주소 */
+  s += '<text font-family="' + FONT + '" x="' + (VB_W / 2) + '" y="' + (PAPER_H - 20) +
+       '" font-size="15" fill="#a6abb3" text-anchor="middle">' + SITE + '</text>';
+
   /* 줄 맞춤 안내선 */
   if (!forPrint && ui.guides.length) {
     ui.guides.forEach(g => {
@@ -742,11 +748,118 @@ function bindPanel() {
 function render() { renderPlan(); renderPanel(); renderDock(); renderHint(); }
 
 /* ============================================================
+   확대 · 축소 · 이동
+   손가락 두 개로 벌리고 오므려 크기를, 그대로 끌어 자리를 바꾼다.
+   종이(.paper)에 CSS 변형을 걸어 두면 좌표 계산은 손댈 필요가 없다 —
+   svgPoint 가 실제로 그려진 크기를 재서 쓰기 때문이다.
+   ============================================================ */
+let view = { k: 1, x: 0, y: 0 };
+const K_MIN = 0.4, K_MAX = 6;
+
+function applyView() {
+  const paper = $('#paper'), stage = $('#stage');
+  if (!paper || !stage) return;
+  view.k = clamp(view.k, K_MIN, K_MAX);
+  const put = () => { paper.style.transform =
+    'translate(' + view.x + 'px,' + view.y + 'px) scale(' + view.k + ')'; };
+  put();
+  /* 종이를 화면 밖으로 완전히 놓치지 않도록 붙잡아 둔다 */
+  const st = stage.getBoundingClientRect(), r = paper.getBoundingClientRect(), pad = 90;
+  let dx = 0, dy = 0;
+  if (r.right  < st.left + pad)  dx = st.left + pad - r.right;
+  if (r.left   > st.right - pad) dx = st.right - pad - r.left;
+  if (r.bottom < st.top + pad)   dy = st.top + pad - r.bottom;
+  if (r.top    > st.bottom - pad) dy = st.bottom - pad - r.top;
+  if (dx || dy) { view.x += dx; view.y += dy; put(); }
+  const zv = $('#zoom-val');
+  if (zv) zv.textContent = Math.round(view.k * 100) + '%';
+}
+function resetView() { view = { k: 1, x: 0, y: 0 }; applyView(); }
+/* 변형을 뺀 원래 자리 — 손짓이 이어지는 동안에는 바뀌지 않는다 */
+function paperLayout() {
+  const r = $('#paper').getBoundingClientRect();
+  return { l: r.left - view.x, t: r.top - view.y };
+}
+/* 화면의 한 점을 붙잡은 채 크기를 바꾼다 */
+function zoomAt(sx, sy, k2, lay) {
+  k2 = clamp(k2, K_MIN, K_MAX);
+  const px = (sx - lay.l - view.x) / view.k, py = (sy - lay.t - view.y) / view.k;
+  view.x = sx - lay.l - k2 * px;
+  view.y = sy - lay.t - k2 * py;
+  view.k = k2;
+}
+function zoomStep(f) {
+  const st = $('#stage').getBoundingClientRect();
+  zoomAt(st.left + st.width / 2, st.top + st.height / 2, view.k * f, paperLayout());
+  applyView();
+}
+
+function bindZoom() {
+  const stage = $('#stage');
+  const pts = new Map();
+  let pinch = null;
+
+  stage.addEventListener('pointerdown', ev => {
+    if (ev.target.closest('.zoombar')) return;
+    pts.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    if (pts.size === 2) {
+      canvasDrag = null;                 /* 한 손가락으로 끌던 것은 여기서 그만둔다 */
+      ui.guides = [];
+      const v = Array.from(pts.values());
+      pinch = {
+        d0: Math.hypot(v[0].x - v[1].x, v[0].y - v[1].y) || 1,
+        mid0: { x: (v[0].x + v[1].x) / 2, y: (v[0].y + v[1].y) / 2 },
+        k0: view.k, x0: view.x, y0: view.y, lay: paperLayout()
+      };
+      renderPlan();
+      ev.stopPropagation();
+    }
+  }, true);
+
+  stage.addEventListener('pointermove', ev => {
+    if (!pts.has(ev.pointerId)) return;
+    pts.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    if (!pinch || pts.size < 2) return;
+    const v = Array.from(pts.values());
+    const d = Math.hypot(v[0].x - v[1].x, v[0].y - v[1].y);
+    const mid = { x: (v[0].x + v[1].x) / 2, y: (v[0].y + v[1].y) / 2 };
+    view.k = pinch.k0; view.x = pinch.x0; view.y = pinch.y0;
+    zoomAt(pinch.mid0.x, pinch.mid0.y, pinch.k0 * (d / pinch.d0), pinch.lay);
+    view.x += mid.x - pinch.mid0.x;
+    view.y += mid.y - pinch.mid0.y;
+    applyView();
+    ev.stopPropagation(); ev.preventDefault();
+  }, true);
+
+  const end = ev => { pts.delete(ev.pointerId); if (pts.size < 2) pinch = null; };
+  stage.addEventListener('pointerup', end, true);
+  stage.addEventListener('pointercancel', end, true);
+
+  /* 마우스·트랙패드 */
+  stage.addEventListener('wheel', ev => {
+    ev.preventDefault();
+    if (ev.ctrlKey || ev.metaKey) {
+      zoomAt(ev.clientX, ev.clientY, view.k * (ev.deltaY < 0 ? 1.12 : 1 / 1.12), paperLayout());
+    } else {
+      view.x -= ev.deltaX; view.y -= ev.deltaY;
+    }
+    applyView();
+  }, { passive: false });
+
+  $('#zoombar').onclick = ev => {
+    const b = ev.target.closest('[data-zoom]'); if (!b) return;
+    if (b.dataset.zoom === 'in') zoomStep(1.25);
+    else if (b.dataset.zoom === 'out') zoomStep(1 / 1.25);
+    else resetView();
+  };
+}
+
+/* ============================================================
    캔버스 조작
    ============================================================ */
+let canvasDrag = null;
 function bindCanvas() {
   const svg = $('#plan');
-  let drag = null;
 
   const inRoom = pt => {
     const rb = roomBox();
@@ -769,19 +882,19 @@ function bindCanvas() {
 
     if (hd) {
       svg.setPointerCapture(ev.pointerId);
-      drag = { kind: 'resize', dir: hd.dataset.handle, p0: pt, room0: Object.assign({}, doc.room), saved: false };
+      canvasDrag = { kind: 'resize', dir: hd.dataset.handle, p0: pt, room0: Object.assign({}, doc.room), saved: false };
       return;
     }
     if (lg) {
       svg.setPointerCapture(ev.pointerId);
-      drag = { kind: 'light', id: lg.dataset.light,
+      canvasDrag = { kind: 'light', id: lg.dataset.light,
                x0: ev.clientX, y0: ev.clientY, moved: false, saved: false };
-      if (ui.tool === 'select') { ui.sel = { t: 'light', id: drag.id }; renderPlan(); renderHint(); }
+      if (ui.tool === 'select') { ui.sel = { t: 'light', id: canvasDrag.id }; renderPlan(); renderHint(); }
       return;
     }
     if (ui.tool === 'select' && inRoom(pt)) {
       svg.setPointerCapture(ev.pointerId);
-      drag = { kind: 'room', p0: pt, room0: Object.assign({}, doc.room), moved: false, saved: false };
+      canvasDrag = { kind: 'room', p0: pt, room0: Object.assign({}, doc.room), moved: false, saved: false };
       const was = ui.sel && ui.sel.t === 'room';
       ui.sel = { t: 'room', id: 'room' };
       if (!was) { renderPlan(); renderHint(); }
@@ -791,15 +904,15 @@ function bindCanvas() {
   });
 
   svg.addEventListener('pointermove', ev => {
-    if (!drag) return;
+    if (!canvasDrag) return;
     const pt = svgPoint(ev);
 
-    if (drag.kind === 'resize' || drag.kind === 'room') {
-      if (!drag.saved) { snapshot(); drag.saved = true; }
+    if (canvasDrag.kind === 'resize' || canvasDrag.kind === 'room') {
+      if (!canvasDrag.saved) { snapshot(); canvasDrag.saved = true; }
       const bd = roomBand();
-      const r0 = drag.room0, dx = (pt.x - drag.p0.x) / bd.w, dy = (pt.y - drag.p0.y) / bd.h;
+      const r0 = canvasDrag.room0, dx = (pt.x - canvasDrag.p0.x) / bd.w, dy = (pt.y - canvasDrag.p0.y) / bd.h;
 
-      if (drag.kind === 'room') {
+      if (canvasDrag.kind === 'room') {
         /* 방 한가운데를 방 칸 한가운데에 맞춰 준다 */
         const cx = bd.x + bd.w / 2, cy = bd.y + bd.h / 2;
         const sn = snapTo(
@@ -813,7 +926,7 @@ function bindCanvas() {
         };
       } else {
         /* 끌지 않는 쪽 벽은 제자리에 두고, 그 벽에서 방 칸 끝까지가 최대 크기다 */
-        const d = drag.dir, MIN = 0.07;
+        const d = canvasDrag.dir, MIN = 0.07;
         let x = r0.x, y = r0.y, w = r0.w, h = r0.h;
         const maxW = d.indexOf('w') >= 0 ? r0.x + r0.w : 1 - r0.x;
         const maxH = d.indexOf('n') >= 0 ? r0.y + r0.h : 1 - r0.y;
@@ -841,12 +954,12 @@ function bindCanvas() {
       renderDrag(); return;
     }
 
-    if (Math.abs(ev.clientX - drag.x0) + Math.abs(ev.clientY - drag.y0) < 4) return;
-    if (!drag.saved) { snapshot(); drag.saved = true; }
-    drag.moved = true;
+    if (Math.abs(ev.clientX - canvasDrag.x0) + Math.abs(ev.clientY - canvasDrag.y0) < 4) return;
+    if (!canvasDrag.saved) { snapshot(); canvasDrag.saved = true; }
+    canvasDrag.moved = true;
     const rb = roomBox();
-    if (drag.kind === 'light') {
-      const l = doc.lights.filter(x => x.id === drag.id)[0];
+    if (canvasDrag.kind === 'light') {
+      const l = doc.lights.filter(x => x.id === canvasDrag.id)[0];
       if (l) {
         const sn = snapLight(l, pt);
         l.nx = clamp((sn.x - rb.x) / rb.w, 0, 1);
@@ -858,8 +971,8 @@ function bindCanvas() {
   });
 
   svg.addEventListener('pointerup', ev => {
-    if (!drag) return;
-    const d = drag; drag = null;
+    if (!canvasDrag) return;
+    const d = canvasDrag; canvasDrag = null;
     ui.guides = [];
     try { svg.releasePointerCapture(ev.pointerId); } catch (e) {}
 
@@ -1203,6 +1316,8 @@ function boot() {
   });
 
   bindCanvas();
+  bindZoom();
+  applyView();
 
   /* 줄이기 전 판에서 담긴 사진은 열 때 한 번 줄인다.
      용량이 작아도 4000px짜리면 다시 칠할 때마다 비싸므로, 그림의 실제 크기로 판단한다. */

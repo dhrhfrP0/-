@@ -88,10 +88,19 @@ input{font-family:inherit}
 .workspace{flex:1 1 auto;display:flex;min-height:0}
 
 .stage{flex:1 1 auto;position:relative;display:grid;place-items:center;padding:28px 28px 96px;
-  min-width:0;overflow:auto}
+  min-width:0;overflow:hidden;touch-action:none}
 /* 세로로 긴 A4 한 장이라 높이를 기준으로 맞춰야 화면에 다 들어온다 */
 .paper{position:relative;width:auto;height:100%;max-width:100%;max-height:100%;
-  background:#fff;box-shadow:var(--shadow);border-radius:2px}
+  background:#fff;box-shadow:var(--shadow);border-radius:2px;
+  transform-origin:0 0;will-change:transform}
+
+/* 확대·축소 */
+.zoombar{position:absolute;bottom:16px;left:16px;z-index:5;display:flex;align-items:center;
+  padding:3px;background:#14161aee;border-radius:99px;box-shadow:var(--shadow)}
+.zoombar button{min-width:34px;height:30px;padding:0 8px;font-size:13px;font-weight:700;
+  color:#e8eaee;border-radius:99px}
+.zoombar button:hover{background:#ffffff26}
+#zoom-val{min-width:52px;font-variant-numeric:tabular-nums}
 #plan{display:block;width:100%;height:100%;touch-action:none;user-select:none}
 .hint{position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:5;
   display:flex;align-items:center;gap:10px;padding:10px 14px;font-size:13px;font-weight:600;
@@ -228,15 +237,17 @@ input{font-family:inherit}
 
 /* ============ 인쇄 ============ */
 #print-root{display:none}
+@page{size:A4 portrait;margin:0}
 @media print{
-  body{overflow:visible;background:#fff}
+  html,body{margin:0;padding:0;height:100%;overflow:visible;background:#fff}
   .shell,.screen,.dock,.modal-back,.toast,.pop{display:none!important}
-  #print-root{display:block}
-  @page{size:A4 portrait;margin:0}
+  #print-root{display:block;height:100%;margin:0;padding:0}
+  /* 종이 크기에 딱 맞추면 반올림 한 픽셀 때문에 두 장이 된다.
+     높이를 기준으로 살짝 작게 앉혀, 어떤 용지에서도 한 장에 담기게 한다. */
+  .sheet{width:100%;height:100%;display:flex;align-items:flex-start;justify-content:center;
+    margin:0;padding:0;line-height:0;overflow:hidden}
+  .sheet svg{display:block;width:auto;height:99.4%;max-width:100%}
 }
-/* 화면에서 보던 A4 한 장이 그대로 종이가 된다 */
-.sheet{width:210mm;height:297mm}
-.sheet svg{display:block;width:100%;height:100%}
 
 /* 좁은 화면 — 도면을 위, 설정을 아래로 쌓고 툴바를 흐름 안에 둔다 */
 @media (max-width:900px){
