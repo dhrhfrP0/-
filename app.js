@@ -775,19 +775,25 @@ function bindCanvas() {
           w: r0.w, h: r0.h
         };
       } else {
-        const d = drag.dir;
+        /* 끌지 않는 쪽 벽은 제자리에 두고, 그 벽에서 종이 끝까지가 최대 크기다.
+           예전에는 크기에 최대가 없어 종이 밖으로 끝없이 커졌다. */
+        const d = drag.dir, MIN = 0.07;
         let x = r0.x, y = r0.y, w = r0.w, h = r0.h;
-        if (d.indexOf('w') >= 0) { x = r0.x + dx; w = r0.w - dx; }
-        if (d.indexOf('e') >= 0) { w = r0.w + dx; }
-        if (d.indexOf('n') >= 0) { y = r0.y + dy; h = r0.h - dy; }
-        if (d.indexOf('s') >= 0) { h = r0.h + dy; }
-        const MIN = 0.07;
-        if (w < MIN) { if (d.indexOf('w') >= 0) x = r0.x + r0.w - MIN; w = MIN; }
-        if (h < MIN) { if (d.indexOf('n') >= 0) y = r0.y + r0.h - MIN; h = MIN; }
-        /* Shift를 누르면 모서리에서 비율을 지킨다 */
+        const maxW = d.indexOf('w') >= 0 ? r0.x + r0.w : 1 - r0.x;
+        const maxH = d.indexOf('n') >= 0 ? r0.y + r0.h : 1 - r0.y;
+
+        if (d.indexOf('w') >= 0)      { w = clamp(r0.w - dx, MIN, maxW); x = r0.x + r0.w - w; }
+        else if (d.indexOf('e') >= 0) { w = clamp(r0.w + dx, MIN, maxW); }
+        if (d.indexOf('n') >= 0)      { h = clamp(r0.h - dy, MIN, maxH); y = r0.y + r0.h - h; }
+        else if (d.indexOf('s') >= 0) { h = clamp(r0.h + dy, MIN, maxH); }
+
+        /* Shift를 누르면 모서리에서 비율을 지킨다 — 종이를 넘지 않는 선까지만 */
         if (ev.shiftKey && d.length === 2) {
           const ar = (r0.w * VB_W) / (r0.h * PH);
           h = (w * VB_W / ar) / PH;
+          if (h > maxH) { h = maxH; w = (h * PH * ar) / VB_W; }
+          if (h < MIN)  { h = MIN;  w = (h * PH * ar) / VB_W; }
+          w = clamp(w, MIN, maxW);
           if (d.indexOf('n') >= 0) y = r0.y + r0.h - h;
           if (d.indexOf('w') >= 0) x = r0.x + r0.w - w;
         }
