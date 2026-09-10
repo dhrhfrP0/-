@@ -22,10 +22,10 @@ const FONT  = "'Apple SD Gothic Neo','Malgun Gothic',sans-serif";
 
 /* 등 모양과 크기. 편집 툴바에서 고른 모양을 한 번 더 누르면 크기를 고른다. */
 const SIZES = {
-  bar:    { s: { w: 100, h: 22 },  m: { w: 152, h: 34 },  l: { w: 212, h: 46 } },
-  vbar:   { s: { w: 22,  h: 100 }, m: { w: 34,  h: 152 }, l: { w: 46,  h: 212 } },
-  square: { s: { w: 50,  h: 50 },  m: { w: 74,  h: 74 },  l: { w: 102, h: 102 } },
-  circle: { s: { w: 50,  h: 50 },  m: { w: 74,  h: 74 },  l: { w: 102, h: 102 } }
+  bar:    { s: { w: 70, h: 16 }, m: { w: 106, h: 24 },  l: { w: 148, h: 32 } },
+  vbar:   { s: { w: 16, h: 70 }, m: { w: 24,  h: 106 }, l: { w: 32,  h: 148 } },
+  square: { s: { w: 36, h: 36 }, m: { w: 52,  h: 52 },  l: { w: 72,  h: 72 } },
+  circle: { s: { w: 36, h: 36 }, m: { w: 52,  h: 52 },  l: { w: 72,  h: 72 } }
 };
 const SIZE_NAMES = { s: '소', m: '중', l: '대' };
 function sizeOf(shape, key) { return SIZES[shape][key] || SIZES[shape].m; }
@@ -282,13 +282,13 @@ function gridPlace(rows, cols, shape) {
   const stepY = rows > 1 ? rb.h * (1 - pad * 2) / (rows - 1) : rb.h * 0.8;
   let size;
   if (sp === 'bar') {
-    const w = clamp(stepX * 0.82, 46, base.w);
-    size = { w: w, h: clamp(w * 0.22, 15, base.h) };
+    const w = clamp(stepX * 0.82, 28, base.w);
+    size = { w: w, h: clamp(w * 0.23, 8, base.h) };
   } else if (sp === 'vbar') {
-    const h = clamp(stepY * 0.82, 46, base.h);
-    size = { w: clamp(h * 0.22, 15, base.w), h: h };
+    const h = clamp(stepY * 0.82, 28, base.h);
+    size = { w: clamp(h * 0.23, 8, base.w), h: h };
   } else {
-    const d = clamp(Math.min(stepX, stepY) * 0.62, 26, base.w);
+    const d = clamp(Math.min(stepX, stepY) * 0.62, 18, base.w);
     size = { w: d, h: d };
   }
   /* 등이 방 테두리를 넘지 않도록 등 크기만큼 여백을 더 준다 */
@@ -449,13 +449,16 @@ function planSVG(forPrint) {
       shp = '<rect x="' + (cx - l.w / 2) + '" y="' + (cy - l.h / 2) + '" width="' + l.w + '" height="' + l.h +
             '" rx="' + rx + '" fill="' + fill + '" stroke="' + stroke + '" stroke-width="' + sw + '"/>';
     }
-    /* 글자가 등 밖으로 삐져나오지 않게 폭에 맞춰 줄인다 */
-    let fs = l.shape === 'bar' ? 21 : (l.shape === 'vbar' ? 19 : 26);
-    if (txt) fs = clamp(Math.min(fs, (l.w - 8) / (txt.length * 0.60)), 9, fs);
+    /* 글자가 등 밖으로 삐져나오지 않게 가로·세로 모두에 맞춰 줄인다 */
+    const base = (l.shape === 'square' || l.shape === 'circle') ? 24 : 20;
+    const qs = clamp(Math.min(16, l.h * 0.62, l.w * 0.62), 7, 16);
+    let fs = base;
+    if (txt) fs = clamp(Math.min(base, (l.w - 6) / (txt.length * 0.62), (l.h - 5) / 1.15), 7, base);
     const label = txt
       ? '<text font-family="' + FONT + '" x="' + cx + '" y="' + (cy + fs * 0.35) + '" font-size="' + fs +
         '" font-weight="800" fill="' + inkOn(fill) + '" text-anchor="middle">' + esc(txt) + '</text>'
-      : '<text font-family="' + FONT + '" x="' + cx + '" y="' + (cy + 7) + '" font-size="20" font-weight="700" fill="#9aa2ad" text-anchor="middle">?</text>';
+      : '<text font-family="' + FONT + '" x="' + cx + '" y="' + (cy + qs * 0.35) + '" font-size="' + qs +
+        '" font-weight="700" fill="#9aa2ad" text-anchor="middle">?</text>';
     s += '<g data-light="' + l.id + '" opacity="' + op + '" style="cursor:pointer">' + shp + label + '</g>';
   });
 
@@ -484,7 +487,8 @@ function planSVG(forPrint) {
            '<text font-family="' + FONT + '" x="' + (tx + 27) + '" y="' + ty +
            '" font-size="20" font-weight="800" fill="#111">' + esc(t) + '</text>' +
            '<text font-family="' + FONT + '" x="' + (tx + 27 + t.length * 13 + 12) + '" y="' + ty +
-           '" font-size="18" fill="#555">' + esc(g.desc || ('등 ' + g.lightIds.length + '개')) + '</text>';
+           '" font-size="18" fill="#555">' +
+           esc((g.desc ? g.desc + ' · ' : '') + '등 ' + g.lightIds.length + '개') + '</text>';
       ty += 30;
     });
   });
@@ -699,7 +703,10 @@ function bindPanel() {
     };
   });
   $$('[data-gang-desc]', p).forEach(inp => {
-    inp.oninput = () => { const g = findGang(inp.dataset.gangDesc); if (g) { g.desc = inp.value; persist(); } };
+    inp.oninput = () => {
+      const g = findGang(inp.dataset.gangDesc);
+      if (g) { g.desc = inp.value; persist(); renderPlan(); }
+    };
   });
   $$('[data-side]', p).forEach(inp => {
     inp.oninput = () => { doc.sides[inp.dataset.side] = inp.value; persist(); renderPlan(); };
@@ -1152,7 +1159,7 @@ function boot() {
     if (!yes) setTimeout(openTemplateModal, 220);
   });
 
-  $('#doc-title').oninput = e => { doc.title = e.target.value; persist(); };
+  $('#doc-title').oninput = e => { doc.title = e.target.value; persist(); renderPlan(); };
   $('#btn-template').onclick = openTemplateModal;
   $('#btn-add-switch').onclick = openSwitchModal;
   $('#btn-save-file').onclick = saveFile;
