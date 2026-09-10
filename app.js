@@ -120,7 +120,19 @@ function undo() {
   ui.sel = null; ui.activeGang = null;
   persist(); render();
 }
-function persist() { try { localStorage.setItem(STORE, JSON.stringify(doc)); } catch (e) {} }
+let persistWarned = false;
+function persist() {
+  try {
+    localStorage.setItem(STORE, JSON.stringify(doc));
+    persistWarned = false;
+  } catch (e) {
+    /* 저장 공간이 가득 찼는데 아무 말 없이 넘어가면, 새로고침했을 때 작업이 사라진다 */
+    if (!persistWarned) {
+      persistWarned = true;
+      toast('브라우저에 자동 저장하지 못했습니다. 작업이 사라지지 않도록 “작업 저장”으로 파일을 내려받아 두세요.');
+    }
+  }
+}
 function restore() {
   try {
     const raw = localStorage.getItem(STORE);
@@ -379,14 +391,20 @@ function plateSVG(sw) {
 /* ============================================================
    그리기 — 평면도 SVG
    ============================================================ */
+/* 배경 평면도 그림.
+   사진은 base64 글자로 아주 길어서, 끌 때마다 도면을 통째로 다시 만들면
+   매 순간 사진을 다시 읽느라 뚝뚝 끊긴다. 그래서 이 조각만 따로 두고
+   끄는 동안에는 자리(x·y·크기)만 고쳐 준다. */
+function bgSVG() {
+  if (!doc.bg) return '';
+  const rb = roomBox();
+  return '<image id="bg-img" href="' + esc(doc.bg) + '" x="' + rb.x + '" y="' + rb.y +
+         '" width="' + rb.w + '" height="' + rb.h +
+         '" preserveAspectRatio="xMidYMid meet" opacity="' + doc.bgOpacity + '"/>';
+}
 function planSVG(forPrint) {
   const rb = roomBox();
   let s = '';
-
-  if (doc.bg) {
-    s += '<image href="' + esc(doc.bg) + '" x="' + rb.x + '" y="' + rb.y + '" width="' + rb.w +
-         '" height="' + rb.h + '" preserveAspectRatio="xMidYMid meet" opacity="' + doc.bgOpacity + '"/>';
-  }
   s += '<rect data-room="1" x="' + rb.x + '" y="' + rb.y + '" width="' + rb.w + '" height="' + rb.h +
        '" fill="none" stroke="#111111" stroke-width="3.5"/>';
 
@@ -489,10 +507,23 @@ function planSVG(forPrint) {
 
 function renderPlan() {
   const svg = $('#plan');
-  const H = paperH();
-  $('#paper').style.aspectRatio = VB_W + ' / ' + H;
-  svg.setAttribute('viewBox', '0 0 ' + VB_W + ' ' + H);
-  svg.innerHTML = '<rect width="' + VB_W + '" height="' + H + '" fill="#ffffff"/>' + planSVG(false);
+  $('#paper').style.aspectRatio = VB_W + ' / ' + PAPER_H;
+  svg.setAttribute('viewBox', '0 0 ' + VB_W + ' ' + PAPER_H);
+  svg.innerHTML = '<rect width="' + VB_W + '" height="' + PAPER_H + '" fill="#ffffff"/>' +
+                  '<g id="lay-bg">' + bgSVG() + '</g>' +
+                  '<g id="lay-fg">' + planSVG(false) + '</g>';
+}
+/* 끄는 동안 쓰는 가벼운 다시 그리기 — 배경 사진은 건드리지 않는다 */
+function renderDrag() {
+  const fg = document.getElementById('lay-fg');
+  if (!fg || (doc.bg && !document.getElementById('bg-img'))) { renderPlan(); return; }
+  const img = document.getElementById('bg-img');
+  if (img) {
+    const rb = roomBox();
+    img.setAttribute('x', rb.x); img.setAttribute('y', rb.y);
+    img.setAttribute('width', rb.w); img.setAttribute('height', rb.h);
+  }
+  fg.innerHTML = planSVG(false);
 }
 
 /* ============================================================
@@ -638,19 +669,18 @@ function bindPanel() {
   const bf = $('#bg-file', p);
   if (bf) bf.onchange = () => {
     const f = bf.files && bf.files[0];
-    if (!f) return;
-    const rd = new FileReader();
-    rd.onload = () => {
-      snapshot(); doc.bg = rd.result;
-      const img = new Image();
-      img.onload  = () => { placeRoom(img.naturalWidth, img.naturalHeight); persist(); render(); };
-      img.onerror = () => { persist(); render(); };
-      img.src = rd.result;
-    };
-    rd.readAsDataURL(f);
+    if (f) loadBlueprint(f);
   };
   const op = $('#bg-op', p);
-  if (op) op.oninput = () => { doc.bgOpacity = op.value / 100; persist(); renderPlan(); };
+  if (op) {
+    /* 사진을 다시 만들지 않고 투명도만 고친다 */
+    op.oninput = () => {
+      doc.bgOpacity = op.value / 100;
+      const im = document.getElementById('bg-img');
+      if (im) im.setAttribute('opacity', doc.bgOpacity); else renderPlan();
+    };
+    op.onchange = () => { persist(); render(); };
+  }
 }
 
 function render() { renderPlan(); renderPanel(); renderDock(); renderHint(); }
@@ -752,7 +782,7 @@ function bindCanvas() {
           l.w = clamp(o.w * k, 10, 700); l.h = clamp(o.h * k, 6, 700);
         });
       }
-      renderPlan(); return;
+      renderDrag(); return;
     }
 
     if (Math.abs(ev.clientX - drag.x0) + Math.abs(ev.clientY - drag.y0) < 4) return;
@@ -776,7 +806,7 @@ function bindCanvas() {
         ui.guides = sn.guides;
       }
     }
-    renderPlan();
+    renderDrag();
   });
 
   svg.addEventListener('pointerup', ev => {
@@ -795,6 +825,41 @@ function bindCanvas() {
     }
     persist(); render();
   });
+}
+
+/* ============================================================
+   평면도 그림 넣기
+   ============================================================ */
+/* 휴대폰 사진은 4000px가 넘는데 도면에서는 900px 남짓으로 그려진다.
+   그대로 두면 끌 때 버벅이고, 브라우저 저장 공간(5MB)도 넘겨 작업이
+   저장되지 않는다. 그래서 받자마자 줄여서 담는다. */
+const BG_MAX = 1600;
+function loadBlueprint(file) {
+  const rd = new FileReader();
+  rd.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const long = Math.max(img.naturalWidth, img.naturalHeight);
+      let url = rd.result;
+      if (long > BG_MAX) {
+        const k = BG_MAX / long;
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.naturalWidth * k);
+        c.height = Math.round(img.naturalHeight * k);
+        const g = c.getContext('2d');
+        g.fillStyle = '#ffffff'; g.fillRect(0, 0, c.width, c.height);   /* 투명 배경이 검게 나오지 않도록 */
+        g.drawImage(img, 0, 0, c.width, c.height);
+        try { url = c.toDataURL('image/jpeg', 0.85); } catch (e) {}
+      }
+      snapshot();
+      doc.bg = url;
+      placeRoom(img.naturalWidth, img.naturalHeight);
+      persist(); render();
+    };
+    img.onerror = () => alert('이미지를 읽을 수 없습니다. 다른 파일로 해보세요.');
+    img.src = rd.result;
+  };
+  rd.readAsDataURL(file);
 }
 
 /* ============================================================
@@ -1001,7 +1066,7 @@ function buildPrintSheet() {
     '<div class="sheet">' +
       '<div class="sheet-head"><h1>' + esc(title) + '</h1><div class="sh-tag">조명 스위치 안내판</div></div>' +
       '<div class="sheet-plan"><svg id="p-svg" xmlns="http://www.w3.org/2000/svg">' +
-        '<rect width="' + VB_W + '" height="' + paperH() + '" fill="#ffffff"/>' + planSVG(true) + '</svg></div>' +
+        '<rect width="' + VB_W + '" height="' + paperH() + '" fill="#ffffff"/>' + bgSVG() + planSVG(true) + '</svg></div>' +
       (lg ? '<h2 class="lg-title">스위치 · 버튼별 안내</h2><div class="lg-grid">' + lg + '</div>' : '') +
       '<div class="sheet-foot"><span>등 안의 숫자 = 그 등을 켜는 스위치 버튼 번호</span><span>' + stamp + '</span></div>' +
     '</div>';
