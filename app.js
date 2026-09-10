@@ -496,10 +496,18 @@ function planSVG(forPrint) {
     ];
     s += '<rect x="' + (rb.x - 4) + '" y="' + (rb.y - 4) + '" width="' + (rb.w + 8) + '" height="' + (rb.h + 8) +
          '" fill="none" stroke="#2563eb" stroke-width="1.6" stroke-dasharray="7 5"/>';
-    pts.forEach(p => {
-      s += '<rect data-handle="' + p[0] + '" x="' + (p[1] - half) + '" y="' + (p[2] - half) +
-           '" width="' + H + '" height="' + H + '" rx="2.5" fill="#ffffff" stroke="#2563eb" stroke-width="2" ' +
-           'style="cursor:' + p[3] + '"/>';
+    /* 점은 늘 종이 안에 두고, 잡는 범위는 눈에 보이는 것보다 넉넉하게 준다.
+       종이 끝에 걸치면 손가락은커녕 마우스로도 잡히지 않아 방을 되돌릴 수 없었다. */
+    const HIT = 34;
+    pts.forEach(q => {
+      const hx = clamp(q[1], half + 1, VB_W - half - 1);
+      const hy = clamp(q[2], half + 1, PAPER_H - half - 1);
+      s += '<g data-handle="' + q[0] + '" style="cursor:' + q[3] + '">' +
+           '<rect x="' + (hx - HIT / 2) + '" y="' + (hy - HIT / 2) + '" width="' + HIT + '" height="' + HIT +
+           '" fill="none" pointer-events="all"/>' +
+           '<rect x="' + (hx - half) + '" y="' + (hy - half) + '" width="' + H + '" height="' + H +
+           '" rx="2.5" fill="#ffffff" stroke="#2563eb" stroke-width="2"/>' +
+           '</g>';
     });
   }
   return s;
@@ -724,8 +732,7 @@ function bindCanvas() {
 
     if (hd) {
       svg.setPointerCapture(ev.pointerId);
-      drag = { kind: 'resize', dir: hd.dataset.handle, p0: pt, room0: Object.assign({}, doc.room),
-               lights0: doc.lights.map(l => ({ w: l.w, h: l.h })), saved: false };
+      drag = { kind: 'resize', dir: hd.dataset.handle, p0: pt, room0: Object.assign({}, doc.room), saved: false };
       return;
     }
     if (lg || sg) {
@@ -784,13 +791,10 @@ function bindCanvas() {
           if (d.indexOf('n') >= 0) y = r0.y + r0.h - h;
           if (d.indexOf('w') >= 0) x = r0.x + r0.w - w;
         }
+        /* 등 크기는 건드리지 않는다. 소·중·대로 정해 쓰는 값이라 방을 늘렸다고
+           같이 커지면 애써 맞춰 놓은 크기가 흐트러진다.
+           자리는 방 기준 좌표라 저절로 따라온다. */
         doc.room = { x: clamp(x, 0, 1 - w), y: clamp(y, 0, 1 - h), w: w, h: h };
-        /* 방이 커지고 작아지는 만큼 등도 함께 — 넓이 기준이라 등 모양은 그대로다 */
-        const k = Math.sqrt((doc.room.w * doc.room.h) / (r0.w * r0.h));
-        doc.lights.forEach((l, i) => {
-          const o = drag.lights0[i]; if (!o) return;
-          l.w = clamp(o.w * k, 10, 700); l.h = clamp(o.h * k, 6, 700);
-        });
       }
       renderDrag(); return;
     }
