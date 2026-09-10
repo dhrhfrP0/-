@@ -179,7 +179,10 @@ input{font-family:inherit}
 .modal-row{display:flex;gap:10px;justify-content:flex-end;margin-top:22px}
 .m-btn{padding:11px 18px;font-size:14px;font-weight:700;border-radius:9px;background:#f0f1f4}
 .m-btn:hover{background:#e5e7eb}
+.m-btn{display:inline-block;text-align:center;text-decoration:none}
 .m-btn.primary{background:var(--ink);color:#fff}
+.pdf-preview{display:block;width:100%;max-height:46vh;object-fit:contain;object-position:top;
+  margin-top:6px;border:1px solid var(--line);border-radius:8px;background:#fff}
 .m-btn.primary:hover{background:#000}
 .tpl-list{display:flex;flex-direction:column;gap:9px}
 .tpl{display:flex;align-items:center;gap:14px;padding:14px;text-align:left;

@@ -1256,9 +1256,21 @@ function makePdf(jpeg, pxW, pxH) {
   parts.forEach(b => { out.set(b, at); at += b.length; });
   return out;
 }
+/* 아이폰·아이패드는 "누른 직후"가 아니면 내려받기를 막는다.
+   PDF를 만드는 데 시간이 걸리니, 다 만든 뒤 누를 수 있는 단추를 내어
+   그 누름으로 받게 한다. 미리보기도 함께 보여준다. */
+let pdfUrl = null;
 function savePdf() {
   const pxW = Math.round(210 / 25.4 * PDF_DPI);
   const pxH = Math.round(pxW * PAPER_H / VB_W);
+  const name = (doc.title.trim() || '조명안내판') + '.pdf';
+
+  openModal('<h3>PDF 만드는 중…</h3><p class="m-sub">잠시만요.</p>');
+
+  const fail = () => openModal('<h3>PDF를 만들지 못했습니다</h3>' +
+    '<p class="m-sub">대신 <b>인쇄</b> 버튼으로 뽑을 수 있습니다. 다만 브라우저가 주소와 날짜를 함께 붙입니다.</p>' +
+    '<div class="modal-row"><button class="m-btn primary" data-close>닫기</button></div>');
+
   const img = new Image();
   img.onload = () => {
     try {
@@ -1267,14 +1279,26 @@ function savePdf() {
       const g = c.getContext('2d');
       g.fillStyle = '#ffffff'; g.fillRect(0, 0, pxW, pxH);
       g.drawImage(img, 0, 0, pxW, pxH);
-      const b64 = c.toDataURL('image/jpeg', 0.94).split(',')[1];
-      const bin = atob(b64), jpeg = new Uint8Array(bin.length);
+      const url = c.toDataURL('image/jpeg', 0.94);
+      const bin = atob(url.split(',')[1]), jpeg = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) jpeg[i] = bin.charCodeAt(i);
-      downloadBlob(new Blob([makePdf(jpeg, pxW, pxH)], { type: 'application/pdf' }),
-                   (doc.title.trim() || '조명안내판') + '.pdf');
-    } catch (e) { toast('PDF를 만들지 못했습니다. 인쇄 버튼으로 뽑아보세요.'); }
+
+      if (pdfUrl) URL.revokeObjectURL(pdfUrl);
+      pdfUrl = URL.createObjectURL(new Blob([makePdf(jpeg, pxW, pxH)], { type: 'application/pdf' }));
+
+      openModal('<h3>PDF가 준비됐습니다</h3>' +
+        '<p class="m-sub">' + esc(name) + '</p>' +
+        '<img class="pdf-preview" src="' + url + '" alt="">' +
+        (EMBEDDED
+          ? '<div class="note">지금 화면은 내려받기가 막혀 있습니다. 이 페이지를 새 탭에서 열고 다시 눌러주세요.</div>'
+          : '<div class="note">아이폰·아이패드는 <b>파일</b> 앱에 저장됩니다.</div>') +
+        '<div class="modal-row"><button class="m-btn" data-close>닫기</button>' +
+        '<a class="m-btn primary" id="pdf-get" href="' + pdfUrl + '" download="' +
+          esc(name.replace(/[\\/:*?"<>|]/g, '')) + '">내려받기</a></div>',
+        m => { const a = $('#pdf-get', m); if (a) a.addEventListener('click', () => setTimeout(closeModal, 400)); });
+    } catch (e) { fail(); }
   };
-  img.onerror = () => toast('PDF를 만들지 못했습니다. 인쇄 버튼으로 뽑아보세요.');
+  img.onerror = fail;
   img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(pageSVGString());
 }
 
